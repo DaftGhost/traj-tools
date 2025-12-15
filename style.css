@@ -63,6 +63,16 @@ body {
   gap: 8px;
 }
 
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#smooth-radius {
+  flex: 1;
+}
+
 button {
   padding: 8px 12px;
   border: 1px solid #c7ced9;

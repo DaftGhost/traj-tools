@@ -41,10 +41,18 @@ if (mapSelect) {
 const palette = ['#2563eb', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#0ea5e9'];
 let paletteIdx = 0;
 
+// 联动平滑配置
+const SMOOTH_CONFIG = {
+  radiusDeg: 20 / 111000, // 影响半径（以度为单位，约 20m）
+};
+
 const routes = [];
 let selectedRouteId = null;
 let selectedPoint = null; // {routeId, pointIdx}
 let pendingAdd = false;
+
+// 拖动上下文：记录一次拖动过程中的原始点位等信息
+let dragContext = null;
 
 const fileInput = document.querySelector('#file-input');
 const toggleEditBtn = document.querySelector('#toggle-edit');
@@ -54,6 +62,8 @@ const fitBoundsBtn = document.querySelector('#fit-bounds');
 const exportBtn = document.querySelector('#export-csv');
 const routesList = document.querySelector('#routes-list');
 const statusEl = document.querySelector('#status');
+const smoothRadiusInput = document.querySelector('#smooth-radius');
+const smoothRadiusValueEl = document.querySelector('#smooth-radius-value');
 
 fileInput.addEventListener('change', handleFiles);
 toggleEditBtn.addEventListener('click', toggleEditMode);
@@ -64,6 +74,22 @@ exportBtn.addEventListener('click', exportCsv);
 map.on('click', onMapClick);
 addNodeBtn.disabled = true;
 deleteNodeBtn.disabled = true;
+
+if (smoothRadiusInput && smoothRadiusValueEl) {
+  // 初始显示（滑块单位：米）
+  const initMeters = Number(smoothRadiusInput.value) || 20;
+  const initDeg = initMeters / 111000;
+  SMOOTH_CONFIG.radiusDeg = initDeg;
+  smoothRadiusValueEl.textContent = `${initMeters} m`;
+
+  smoothRadiusInput.addEventListener('input', (e) => {
+    const meters = Number(e.target.value);
+    if (!Number.isFinite(meters) || meters <= 0) return;
+    const deg = meters / 111000; // 粗略按纬度 1° ≈ 111km 换算
+    SMOOTH_CONFIG.radiusDeg = deg;
+    smoothRadiusValueEl.textContent = `${meters} m`;
+  });
+}
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -177,14 +203,56 @@ function createMarker({ routeId, idx, point, color, editable }) {
     icon: buildMarkerIcon(color, false),
   }).addTo(map);
 
+  marker.on('dragstart', () => {
+    const route = getRoute(routeId);
+    if (!route) return;
+    // 记录当前航线所有点的原始位置，避免在已经平滑后的结果上重复叠加
+    dragContext = {
+      routeId,
+      movedIdx: idx,
+      originalPoints: route.points.map((p) => ({ lat: p.lat, lon: p.lon })),
+      newPoints: null,
+    };
+  });
+
+  marker.on('drag', (e) => {
+    const route = getRoute(routeId);
+    if (!route) return;
+    if (!dragContext || dragContext.routeId !== routeId) {
+      return;
+    }
+    const { lat, lng } = e.target.getLatLng();
+    smoothUpdatePoint(routeId, idx, lat, lng);
+  });
+
   marker.on('click', () => {
     selectRoute(routeId);
     selectMarker(routeId, idx);
   });
 
   marker.on('dragend', (e) => {
+    const route = getRoute(routeId);
+    if (!route) return;
     const { lat, lng } = e.target.getLatLng();
-    updatePoint(routeId, idx, lat, lng);
+
+    // 如果没有拖动上下文，退化为原始的单点移动
+    if (!dragContext || dragContext.routeId !== routeId) {
+      updatePoint(routeId, idx, lat, lng);
+      return;
+    }
+
+    // 确保最终一次位置也参与平滑计算
+    smoothUpdatePoint(routeId, idx, lat, lng);
+
+    if (dragContext.newPoints && dragContext.newPoints.length === route.points.length) {
+      dragContext.newPoints.forEach((p, i) => {
+        route.points[i].lat = p.lat;
+        route.points[i].lon = p.lon;
+      });
+      setStatus(`节点已更新并联动平滑`);
+    }
+
+    dragContext = null;
   });
 
   return marker;
@@ -336,6 +404,50 @@ function updatePoint(routeId, idx, lat, lon) {
   setStatus(`节点已更新: ${lat.toFixed(5)}, ${lon.toFixed(5)}`);
 }
 
+// 距离加权联动平滑更新
+function smoothUpdatePoint(routeId, movedIdx, newLat, newLon) {
+  const route = getRoute(routeId);
+  if (!route) return;
+  if (!dragContext || dragContext.routeId !== routeId) return;
+
+  const original = dragContext.originalPoints;
+  if (!original || !original[movedIdx]) return;
+
+  const movedOrigin = original[movedIdx];
+  const dLat = newLat - movedOrigin.lat;
+  const dLon = newLon - movedOrigin.lon;
+
+  const radius = SMOOTH_CONFIG.radiusDeg || 1.0;
+  const radiusSq = radius * radius;
+
+  const newPoints = original.map((p, i) => {
+    const dLat0 = p.lat - movedOrigin.lat;
+    const dLon0 = p.lon - movedOrigin.lon;
+    const distSq = dLat0 * dLat0 + dLon0 * dLon0;
+
+    if (distSq >= radiusSq) {
+      // 超出影响半径：不联动
+      return { lat: p.lat, lon: p.lon };
+    }
+
+    const dist = Math.sqrt(distSq);
+    const w = Math.max(0, 1 - dist / radius); // 线性衰减权重
+
+    return {
+      lat: p.lat + w * dLat,
+      lon: p.lon + w * dLon,
+    };
+  });
+
+  dragContext.newPoints = newPoints;
+
+  // 更新可视层（polyline + markers）
+  route.polyline.setLatLngs(newPoints.map((p) => [p.lat, p.lon]));
+  route.markers.forEach((m, i) => {
+    m.setLatLng([newPoints[i].lat, newPoints[i].lon]);
+  });
+}
+
 function enableAddMode() {
   if (!selectedRouteId) {
     setStatus('请先选择航线');
@@ -396,14 +508,57 @@ function deleteSelectedNode() {
   // 重新绑定索引
   route.markers.forEach((m, idx) => {
     m.off('click');
+    m.off('dragstart');
+    m.off('drag');
     m.off('dragend');
+
+    m.on('dragstart', () => {
+      const r = getRoute(routeId);
+      if (!r) return;
+      dragContext = {
+        routeId,
+        movedIdx: idx,
+        originalPoints: r.points.map((p) => ({ lat: p.lat, lon: p.lon })),
+        newPoints: null,
+      };
+    });
+
+    m.on('drag', (e) => {
+      const r = getRoute(routeId);
+      if (!r) return;
+      if (!dragContext || dragContext.routeId !== routeId) {
+        return;
+      }
+      const { lat, lng } = e.target.getLatLng();
+      smoothUpdatePoint(routeId, idx, lat, lng);
+    });
+
     m.on('click', () => {
       selectRoute(routeId);
       selectMarker(routeId, idx);
     });
+
     m.on('dragend', (e) => {
+      const r = getRoute(routeId);
+      if (!r) return;
       const { lat, lng } = e.target.getLatLng();
-      updatePoint(routeId, idx, lat, lng);
+
+      if (!dragContext || dragContext.routeId !== routeId) {
+        updatePoint(routeId, idx, lat, lng);
+        return;
+      }
+
+      smoothUpdatePoint(routeId, idx, lat, lng);
+
+      if (dragContext.newPoints && dragContext.newPoints.length === r.points.length) {
+        dragContext.newPoints.forEach((p, i) => {
+          r.points[i].lat = p.lat;
+          r.points[i].lon = p.lon;
+        });
+        setStatus(`节点已更新并联动平滑`);
+      }
+
+      dragContext = null;
     });
   });
   selectedPoint = null;
@@ -441,4 +596,3 @@ function exportCsv() {
   });
   setStatus(`已导出 ${visibleRoutes.length} 条可见航线`);
 }
-
