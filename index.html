@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>航线编辑器</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div id="app">
+    <aside class="panel">
+      <h1>航线编辑器</h1>
+
+      <section class="block">
+        <label class="btn">
+          选择CSV(可多选)
+          <input id="file-input" type="file" accept=".csv" multiple />
+        </label>
+        <div class="hint">需包含 lat/lon 或 latitude/longitude 列</div>
+      </section>
+
+      <section class="block">
+        <h2>底图选择</h2>
+        <select id="map-select" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #c7ced9;">
+          <option value="osm">标准地图 (OpenStreetMap)</option>
+          <option value="satellite">卫星图 (Esri World Imagery)</option>
+          <option value="cartoDark">暗色模式 (CartoDB Dark)</option>
+          <option value="cartoLight">亮色模式 (CartoDB Light)</option>
+
+        </select>
+      </section>
+
+      <section class="block">
+        <div class="controls">
+          <button id="toggle-edit" class="primary">开启编辑</button>
+          <button id="add-node">添加节点</button>
+          <button id="delete-node">删除节点</button>
+          <button id="fit-bounds">重置视图</button>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="controls">
+          <button id="export-csv" class="primary">导出CSV</button>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>航线列表</h2>
+        <div id="routes-list" class="routes-list"></div>
+      </section>
+
+      <section class="block">
+        <h2>状态</h2>
+        <div id="status" class="status">尚未加载数据</div>
+      </section>
+    </aside>
+
+    <main id="map"></main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  <script type="module" src="main.js"></script>
+</body>
+
+</html>
