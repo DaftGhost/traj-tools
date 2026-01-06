@@ -69,6 +69,20 @@ body {
   gap: 8px;
 }
 
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 14px;
+  color: #1f2933;
+}
+
+.checkbox-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+
 #smooth-radius {
   flex: 1;
 }
@@ -125,6 +139,18 @@ button:disabled {
   font-size: 14px;
   color: #334155;
   white-space: pre-line;
+}
+
+.measure-result {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px dashed #c7ced9;
+  border-radius: 8px;
+  background: #fbfdff;
+  font-size: 13px;
+  color: #334155;
+  white-space: pre-line;
+  line-height: 1.35;
 }
 
 #map {

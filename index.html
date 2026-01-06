@@ -6,20 +6,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>航线编辑器</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20251218-6" />
 </head>
 
 <body>
   <div id="app">
     <aside class="panel">
-      <h1>航线编辑器</h1>
+      <h1>航线编辑器 <span style="font-size:12px;color:#64748b;">v20251218-6</span></h1>
 
       <section class="block">
         <label class="btn">
-          选择CSV(可多选)
-          <input id="file-input" type="file" accept=".csv" multiple />
+          选择CSV/GeoJSON(可多选)
+          <input id="file-input" type="file" accept=".csv,.geojson,.json" multiple />
         </label>
-        <div class="hint">需包含 lat/lon 或 latitude/longitude 列</div>
+        <div class="hint">CSV需包含 lat/lon 列；GeoJSON支持 LineString/MultiLineString</div>
       </section>
 
       <section class="block">
@@ -43,6 +43,24 @@
       </section>
 
       <section class="block">
+        <h2>测距</h2>
+        <div class="controls">
+          <button id="toggle-measure" class="primary">开启测距</button>
+          <button id="clear-measure" disabled>清除</button>
+        </div>
+        <label class="checkbox-row">
+          <input id="measure-snap-enabled" type="checkbox" checked />
+          吸附到航线
+        </label>
+        <label class="checkbox-row">
+          <input id="measure-snap-selected-only" type="checkbox" checked />
+          仅吸附当前选中航线
+        </label>
+        <div class="hint">测距模式：单击添加点；移动鼠标预览下一段；Esc 清空并退出；Backspace 撤销上一点。吸附用于精确量测“沿航线距离”。</div>
+        <div id="measure-result" class="measure-result">未开启</div>
+      </section>
+
+      <section class="block">
         <h2>平滑半径</h2>
         <div class="slider-row">
           <input id="smooth-radius" type="range" min="1" max="100" step="1" value="20" />
@@ -52,9 +70,28 @@
       </section>
 
       <section class="block">
+        <h2>导出格式</h2>
+        <select id="export-format" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #c7ced9; margin-bottom: 8px;">
+          <option value="csv">CSV格式</option>
+          <option value="geojson">GeoJSON格式</option>
+        </select>
         <div class="controls">
-          <button id="export-csv" class="primary">导出CSV</button>
+          <button id="export-btn" class="primary">导出</button>
         </div>
+      </section>
+
+      <section class="block">
+        <h2>片段截取</h2>
+        <div class="controls">
+          <button id="toggle-segment-export" class="primary">开启片段截取</button>
+          <button id="export-segment" disabled>导出片段</button>
+        </div>
+        <div class="slider-row">
+          <input id="segment-search-radius" type="range" min="1" max="200" step="1" value="50" />
+          <span id="segment-search-radius-value">50 m</span>
+        </div>
+        <div class="hint">垂直搜索距离：在起点和终点处垂直于主航线向两侧延伸的距离</div>
+        <div id="segment-status" class="measure-result">未开启</div>
       </section>
 
       <section class="block">
@@ -74,7 +111,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-  <script type="module" src="main.js"></script>
+  <script type="module" src="main.js?v=20251218-6"></script>
 </body>
 
 </html>
