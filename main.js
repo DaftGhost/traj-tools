@@ -9,6 +9,164 @@ console.warn = function(...args) {
   originalWarn.apply(console, args);
 };
 
+// ==========================================
+// UI 状态管理
+// ==========================================
+const uiState = {
+  accordionStates: {
+    measure: true,      // 测距工具: 默认展开
+    smooth: false,      // 平滑半径: 默认收起
+    export: false,      // 导出: 默认收起
+    segment: false,     // 片段截取: 默认收起
+  },
+  drawerExpanded: true,
+  routeSearchQuery: '',
+};
+
+// ==========================================
+// 手风琴折叠功能
+// ==========================================
+function initializeAccordions() {
+  const accordions = document.querySelectorAll('.accordion');
+
+  accordions.forEach(accordion => {
+    const header = accordion.querySelector('.accordion-header');
+    const section = accordion.dataset.section;
+
+    // 设置初始状态
+    if (uiState.accordionStates[section]) {
+      accordion.classList.add('active');
+      accordion.classList.remove('collapsed');
+    } else {
+      accordion.classList.remove('active');
+      accordion.classList.add('collapsed');
+    }
+
+    // 添加点击处理
+    header.addEventListener('click', () => toggleAccordion(section));
+  });
+}
+
+function toggleAccordion(section) {
+  const accordion = document.querySelector(`.accordion[data-section="${section}"]`);
+  if (!accordion) return;
+
+  const isExpanded = accordion.classList.contains('active');
+
+  if (isExpanded) {
+    accordion.classList.remove('active');
+    accordion.classList.add('collapsed');
+    uiState.accordionStates[section] = false;
+  } else {
+    accordion.classList.add('active');
+    accordion.classList.remove('collapsed');
+    uiState.accordionStates[section] = true;
+  }
+}
+
+// 键盘快捷键: Alt + 1/2/3/4 切换各个区块
+document.addEventListener('keydown', (e) => {
+  if (e.altKey) {
+    if (e.key === '1') toggleAccordion('measure');
+    if (e.key === '2') toggleAccordion('smooth');
+    if (e.key === '3') toggleAccordion('export');
+    if (e.key === '4') toggleAccordion('segment');
+  }
+});
+
+// ==========================================
+// 底部抽屉功能
+// ==========================================
+function initializeDrawer() {
+  const drawer = document.getElementById('route-drawer');
+  const toggleBtn = document.getElementById('drawer-toggle');
+  const searchInput = document.getElementById('route-search');
+  const selectAllCheckbox = document.getElementById('select-all-routes');
+
+  if (!drawer || !toggleBtn || !searchInput || !selectAllCheckbox) {
+    console.warn('抽屉元素未找到，跳过初始化');
+    return;
+  }
+
+  // 切换抽屉
+  toggleBtn.addEventListener('click', () => toggleDrawer());
+
+  // 搜索功能
+  searchInput.addEventListener('input', (e) => {
+    uiState.routeSearchQuery = e.target.value.toLowerCase();
+    filterRoutes();
+  });
+
+  // 全选功能
+  selectAllCheckbox.addEventListener('change', (e) => {
+    const checked = e.target.checked;
+    routes.forEach(route => {
+      if (isRouteVisible(route)) {
+        route.visible = checked;
+        // 更新 UI 中的复选框
+        const checkbox = document.querySelector(`.route-item-checkbox[data-route-id="${route.id}"]`);
+        if (checkbox) checkbox.checked = checked;
+        // 更新航线可见性
+        if (route._display && route._display.layer) {
+          if (route.visible) {
+            route._display.layer.addTo(map);
+          } else {
+            map.removeLayer(route._display.layer);
+          }
+        }
+      }
+    });
+    refreshRoutesList();
+  });
+
+  // 键盘快捷键: Alt + D 切换抽屉
+  document.addEventListener('keydown', (e) => {
+    if (e.altKey && e.key === 'd') {
+      e.preventDefault();
+      toggleDrawer();
+    }
+  });
+}
+
+function toggleDrawer() {
+  const drawer = document.getElementById('route-drawer');
+  if (drawer) {
+    drawer.classList.toggle('collapsed');
+    uiState.drawerExpanded = !drawer.classList.contains('collapsed');
+  }
+}
+
+function isRouteVisible(route) {
+  if (!uiState.routeSearchQuery) return true;
+  return route.name.toLowerCase().includes(uiState.routeSearchQuery);
+}
+
+function filterRoutes() {
+  const routeItems = document.querySelectorAll('.route-item');
+  routeItems.forEach(item => {
+    const routeId = item.dataset.routeId;
+    const route = routes.find(r => r.id === routeId);
+    if (route && isRouteVisible(route)) {
+      item.style.display = 'flex';
+    } else {
+      item.style.display = 'none';
+    }
+  });
+
+  // 更新航线计数
+  const visibleCount = routes.filter(isRouteVisible).length;
+  const countEl = document.querySelector('.route-count');
+  if (countEl) countEl.textContent = `(${visibleCount})`;
+}
+
+// ==========================================
+// UI 初始化
+// ==========================================
+function initializeUI() {
+  initializeAccordions();
+  initializeDrawer();
+}
+
 const map = L.map('map', {
   center: [30, 105],
   zoom: 4,
@@ -120,6 +278,9 @@ map.on('zoomend', () => {
 });
 addNodeBtn.disabled = true;
 deleteNodeBtn.disabled = true;
+
+// 初始化 UI 组件
+initializeUI();
 
 // 测距工具（为航线编辑服务：多点 + 实时预览 + 吸附 + 沿线距离）
 const MEASURE_CONFIG = {
@@ -574,34 +735,72 @@ function attachPolylineEvents(route) {
 
 function refreshRoutesList() {
   routesList.innerHTML = '';
-  routes.forEach((route) => {
+
+  // 过滤可见的航线（根据搜索关键词）
+  const visibleRoutes = routes.filter(route => {
+    if (!uiState.routeSearchQuery) return true;
+    return route.name.toLowerCase().includes(uiState.routeSearchQuery);
+  });
+
+  // 更新航线计数
+  const countEl = document.querySelector('.route-count');
+  if (countEl) countEl.textContent = `(${visibleRoutes.length})`;
+
+  visibleRoutes.forEach((route) => {
     const div = document.createElement('div');
     div.className = 'route-item';
+    div.dataset.routeId = route.id;
 
+    if (selectedRouteId === route.id) {
+      div.classList.add('selected');
+    }
+
+    // 复选框
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
+    checkbox.className = 'route-item-checkbox';
+    checkbox.dataset.routeId = route.id;
     checkbox.checked = route.visible;
     checkbox.addEventListener('change', () => toggleRoute(route.id, checkbox.checked));
 
-    const span = document.createElement('span');
-    span.textContent = route.name;
+    // 信息区
+    const info = document.createElement('div');
+    info.className = 'route-item-info';
 
-    const editBadge = document.createElement('span');
-    editBadge.textContent = route.editable ? '可编辑' : '锁定';
-    editBadge.style.fontSize = '12px';
-    editBadge.style.color = route.editable ? '#16a34a' : '#475569';
+    const name = document.createElement('div');
+    name.className = 'route-item-name';
+    name.textContent = route.name;
+
+    const meta = document.createElement('div');
+    meta.className = 'route-item-meta';
+
+    const badge = document.createElement('span');
+    badge.className = `route-item-badge ${route.editable ? 'editable' : 'locked'}`;
+    badge.textContent = route.editable ? '可编辑' : '锁定';
+
+    const pointCount = document.createElement('span');
+    pointCount.textContent = `${route.points.length} 点`;
+
+    meta.append(badge, pointCount);
+    info.append(name, meta);
+
+    // 操作按钮
+    const actions = document.createElement('div');
+    actions.className = 'route-item-actions';
 
     const selectBtn = document.createElement('button');
+    selectBtn.className = 'route-item-btn';
     selectBtn.textContent = '选择';
     selectBtn.addEventListener('click', () => selectRoute(route.id));
 
     const deleteBtn = document.createElement('button');
-    deleteBtn.textContent = '🗑️';
-    deleteBtn.className = 'delete-btn';
-    deleteBtn.title = '删除航线';
+    deleteBtn.className = 'route-item-btn delete';
+    deleteBtn.textContent = '删除';
     deleteBtn.addEventListener('click', () => confirmDeleteRoute(route.id));
 
-    div.append(checkbox, span, editBadge, selectBtn, deleteBtn);
+    actions.append(selectBtn, deleteBtn);
+
+    div.append(checkbox, info, actions);
     routesList.appendChild(div);
   });
 }
