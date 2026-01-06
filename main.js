@@ -595,7 +595,13 @@ function refreshRoutesList() {
     selectBtn.textContent = '选择';
     selectBtn.addEventListener('click', () => selectRoute(route.id));
 
-    div.append(checkbox, span, editBadge, selectBtn);
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = '🗑️';
+    deleteBtn.className = 'delete-btn';
+    deleteBtn.title = '删除航线';
+    deleteBtn.addEventListener('click', () => confirmDeleteRoute(route.id));
+
+    div.append(checkbox, span, editBadge, selectBtn, deleteBtn);
     routesList.appendChild(div);
   });
 }
@@ -986,7 +992,23 @@ function enableAddMode() {
     clearMeasure({ exit: true });
   }
   pendingAdd = true;
-  setStatus('点击地图以添加节点（追加到末尾）');
+
+  // 根据选中点显示不同的提示
+  let positionHint = '默认追加到末尾';
+  if (selectedPoint && selectedPoint.routeId === route.id) {
+    const pointCount = route.points.length;
+    if (selectedPoint.pointIdx === 0) {
+      positionHint = '将插入到头部';
+    } else if (selectedPoint.pointIdx === pointCount - 1) {
+      positionHint = '将追加到末尾';
+    } else {
+      positionHint = '将追加到末尾（选中首末点可改变插入位置）';
+    }
+  } else {
+    positionHint = '请先选中首点或末点，或直接点击地图（默认追加到末尾）';
+  }
+
+  setStatus(`点击地图以添加节点（${positionHint}）`);
 }
 
 function onMapClick(e) {
@@ -1002,16 +1024,51 @@ function onMapClick(e) {
   const { lat, lng } = e.latlng;
   const route = getRoute(selectedRouteId);
   if (!route || !route.visible || !route.editable) return;
-  const idx = route.points.length;
-  route.points.push({ lat, lon: lng, props: {}, seq: idx });
+
+  // 智能判断插入位置
+  let insertIndex;
+  let insertPosition = '末尾'; // 用于状态提示
+
+  if (selectedPoint && selectedPoint.routeId === route.id) {
+    const pointCount = route.points.length;
+    // 如果选中了首点，在头部插入
+    if (selectedPoint.pointIdx === 0) {
+      insertIndex = 0;
+      insertPosition = '头部';
+    }
+    // 如果选中了末点，在尾部追加
+    else if (selectedPoint.pointIdx === pointCount - 1) {
+      insertIndex = pointCount;
+      insertPosition = '末尾';
+    }
+    // 如果选中了中间点，默认在尾部追加
+    else {
+      insertIndex = pointCount;
+      insertPosition = '末尾';
+    }
+  } else {
+    // 如果没有选中点，默认在尾部追加
+    insertIndex = route.points.length;
+    insertPosition = '末尾';
+  }
+
+  // 插入节点
+  const newPoint = { lat, lon: lng, props: {}, seq: insertIndex };
+  route.points.splice(insertIndex, 0, newPoint);
+
+  // 如果在头部插入，需要更新所有点的序列号
+  if (insertIndex === 0) {
+    route.points.forEach((p, i) => p.seq = i);
+  }
+
   ensurePolylineRawLatLngs(route);
   route.polyline.setLatLngs(route.points.map((p) => [p.lat, p.lon]));
-  setEditHandle(route.id, idx);
+  setEditHandle(route.id, insertIndex);
   pendingAdd = false;
   markRouteDirty(route.id);
   updateRouteDisplayGeometry(route);
   if (measure.active) renderMeasure();
-  setStatus('已添加节点到末尾');
+  setStatus(`已添加节点到${insertPosition}`);
 }
 
 function deleteSelectedNode() {
@@ -1048,6 +1105,61 @@ function deleteSelectedNode() {
   updateRouteDisplayGeometry(route);
   if (measure.active) renderMeasure();
   setStatus('节点已删除');
+}
+
+function confirmDeleteRoute(routeId) {
+  const route = getRoute(routeId);
+  if (!route) return;
+
+  const confirmed = confirm(`确定要删除航线 "${route.name}" 吗？\n\n此操作不可撤销。`);
+  if (confirmed) {
+    deleteRoute(routeId);
+  }
+}
+
+function deleteRoute(routeId) {
+  const routeIndex = routes.findIndex((r) => r.id === routeId);
+  if (routeIndex === -1) return;
+
+  const route = routes[routeIndex];
+
+  // 1. 清理地图上的折线
+  if (route.polyline && map.hasLayer(route.polyline)) {
+    map.removeLayer(route.polyline);
+  }
+
+  // 2. 清理所有标记
+  if (route.markers && route.markers.length) {
+    route.markers.forEach((marker) => {
+      if (map.hasLayer(marker)) {
+        map.removeLayer(marker);
+      }
+    });
+    route.markers = [];
+  }
+
+  // 3. 取消可能正在进行的标记构建任务
+  cancelBuildRouteMarkers(route);
+
+  // 4. 清理编辑句柄 (如果正在编辑此航线)
+  if (editHandle && editHandle.routeId === routeId) {
+    clearEditHandle();
+  }
+
+  // 5. 清除选中状态 (如果选中的是被删除的航线)
+  if (selectedRouteId === routeId) {
+    selectedRouteId = null;
+    selectedPoint = null;
+  }
+
+  // 6. 从数组中移除航线
+  routes.splice(routeIndex, 1);
+
+  // 7. 刷新航线列表
+  refreshRoutesList();
+
+  // 8. 更新状态提示
+  setStatus(`已删除航线: ${route.name}`);
 }
 
 function fitAllBounds() {
