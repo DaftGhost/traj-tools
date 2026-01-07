@@ -14,12 +14,12 @@ console.warn = function(...args) {
 // ==========================================
 const uiState = {
   accordionStates: {
-    measure: true,      // 测距工具: 默认展开
+    measure: false,     // 测距工具: 默认收起
     smooth: false,      // 平滑半径: 默认收起
     export: false,      // 导出: 默认收起
     segment: false,     // 片段截取: 默认收起
   },
-  drawerExpanded: true,
+  drawerExpanded: false,
   routeSearchQuery: '',
 };
 
@@ -266,7 +266,7 @@ const segmentStatusEl = document.querySelector('#segment-status');
 
 fileInput.addEventListener('change', handleFiles);
 toggleEditBtn.addEventListener('click', toggleEditMode);
-addNodeBtn.addEventListener('click', enableAddMode);
+addNodeBtn.addEventListener('click', toggleAddMode);
 deleteNodeBtn.addEventListener('click', deleteSelectedNode);
 fitBoundsBtn.addEventListener('click', fitAllBounds);
 exportBtn.addEventListener('click', exportData);
@@ -1173,7 +1173,16 @@ function smoothUpdatePoint(routeId, movedIdx, newLat, newLon) {
   }
 }
 
-function enableAddMode() {
+function toggleAddMode() {
+  if (pendingAdd) {
+    // 关闭添加节点模式
+    pendingAdd = false;
+    updateAddNodeButton();
+    setStatus('已退出添加节点模式');
+    return;
+  }
+
+  // 开启添加节点模式
   if (!selectedRouteId) {
     setStatus('请先选择航线');
     return;
@@ -1187,10 +1196,17 @@ function enableAddMode() {
     setStatus('当前航线未开启编辑');
     return;
   }
+
+  // 与其他模式互斥
   if (measure.active) {
     clearMeasure({ exit: true });
   }
+  if (segmentExport.active) {
+    clearSegmentExport({ exit: true });
+  }
+
   pendingAdd = true;
+  updateAddNodeButton();
 
   // 根据选中点显示不同的提示
   let positionHint = '默认追加到末尾';
@@ -1207,7 +1223,20 @@ function enableAddMode() {
     positionHint = '请先选中首点或末点，或直接点击地图（默认追加到末尾）';
   }
 
-  setStatus(`点击地图以添加节点（${positionHint}）`);
+  setStatus(`添加节点模式已开启，点击地图添加节点（${positionHint}）`);
+}
+
+function updateAddNodeButton() {
+  if (addNodeBtn) {
+    addNodeBtn.textContent = pendingAdd ? '关闭添加节点' : '添加节点';
+  }
+}
+
+// 保留原函数以兼容可能的调用
+function enableAddMode() {
+  if (!pendingAdd) {
+    toggleAddMode();
+  }
 }
 
 function onMapClick(e) {
@@ -1263,11 +1292,12 @@ function onMapClick(e) {
   ensurePolylineRawLatLngs(route);
   route.polyline.setLatLngs(route.points.map((p) => [p.lat, p.lon]));
   setEditHandle(route.id, insertIndex);
-  pendingAdd = false;
+  // 移除自动关闭逻辑，使添加节点模式持续有效
+  // pendingAdd = false;
   markRouteDirty(route.id);
   updateRouteDisplayGeometry(route);
   if (measure.active) renderMeasure();
-  setStatus(`已添加节点到${insertPosition}`);
+  setStatus(`已添加节点到${insertPosition}，继续点击地图可继续添加`);
 }
 
 function deleteSelectedNode() {
@@ -1595,6 +1625,13 @@ function onDocumentKeyDown(e) {
       clearSegmentSelection();
     }
     return;
+  }
+  if (pendingAdd) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      toggleAddMode();
+      return;
+    }
   }
   if (!measure.active) return;
   if (e.key === 'Escape') {
