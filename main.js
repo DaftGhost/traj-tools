@@ -252,7 +252,12 @@ const exportFormatSelect = document.querySelector('#export-format');
 const routesList = document.querySelector('#routes-list');
 const statusEl = document.querySelector('#status');
 const smoothRadiusInput = document.querySelector('#smooth-radius');
-const smoothRadiusValueEl = document.querySelector('#smooth-radius-value');
+const smoothRadiusUnitEl = document.querySelector('#smooth-radius-unit');
+const smoothRadiusKmEl = document.querySelector('#smooth-radius-km');
+const smoothPlus1Btn = document.querySelector('#smooth-plus-1');
+const smoothPlus100Btn = document.querySelector('#smooth-plus-100');
+const smoothMinus1Btn = document.querySelector('#smooth-minus-1');
+const smoothMinus100Btn = document.querySelector('#smooth-minus-100');
 const toggleMeasureBtn = document.querySelector('#toggle-measure');
 const clearMeasureBtn = document.querySelector('#clear-measure');
 const measureSnapEnabledInput = document.querySelector('#measure-snap-enabled');
@@ -332,17 +337,115 @@ if (measureSnapSelectedOnlyInput) {
 
 document.addEventListener('keydown', onDocumentKeyDown);
 
-if (smoothRadiusInput && smoothRadiusValueEl) {
-  // 初始显示（滑块单位：米）
-  const initMeters = Number(smoothRadiusInput.value) || 20;
-  SMOOTH_CONFIG.radiusMeters = initMeters;
-  smoothRadiusValueEl.textContent = `${initMeters} m`;
+if (smoothRadiusInput) {
+  // Smooth radius control (numeric input + buttons)
+  const MIN_RADIUS = 1;
+  const MAX_RADIUS = 10000;
 
+  // Initialize from config
+  const initMeters = Number(SMOOTH_CONFIG.radiusMeters) || 20;
+  const clampedInit = Math.max(MIN_RADIUS, Math.min(MAX_RADIUS, initMeters));
+  smoothRadiusInput.value = clampedInit;
+  updateSmoothRadiusDisplay(clampedInit);
+
+  // Helper: validate and clamp value
+  function validateSmoothRadius(value) {
+    const num = Number(value);
+    if (!Number.isInteger(num)) return null; // Must be integer
+    if (num < MIN_RADIUS) return MIN_RADIUS;
+    if (num > MAX_RADIUS) return MAX_RADIUS;
+    return num;
+  }
+
+  // Helper: update display elements
+  function updateSmoothRadiusDisplay(meters) {
+    if (smoothRadiusUnitEl) {
+      smoothRadiusUnitEl.textContent = 'm';
+    }
+    if (smoothRadiusKmEl) {
+      if (meters >= 1000) {
+        const km = (meters / 1000).toFixed(1);
+        smoothRadiusKmEl.textContent = `(${km} km)`;
+        smoothRadiusKmEl.style.display = 'inline';
+      } else {
+        smoothRadiusKmEl.style.display = 'none';
+      }
+    }
+  }
+
+  // Helper: apply new radius value
+  function setSmoothRadius(meters) {
+    const valid = validateSmoothRadius(meters);
+    if (valid === null) {
+      // Invalid input, reset to current valid value
+      smoothRadiusInput.value = SMOOTH_CONFIG.radiusMeters;
+      return false;
+    }
+    SMOOTH_CONFIG.radiusMeters = valid;
+    smoothRadiusInput.value = valid;
+    updateSmoothRadiusDisplay(valid);
+    return true;
+  }
+
+  // Input change event
+  smoothRadiusInput.addEventListener('change', (e) => {
+    setSmoothRadius(e.target.value);
+  });
+
+  // Input event (for immediate validation feedback)
   smoothRadiusInput.addEventListener('input', (e) => {
-    const meters = Number(e.target.value);
-    if (!Number.isFinite(meters) || meters <= 0) return;
-    SMOOTH_CONFIG.radiusMeters = meters;
-    smoothRadiusValueEl.textContent = `${meters} m`;
+    const valid = validateSmoothRadius(e.target.value);
+    if (valid !== null) {
+      SMOOTH_CONFIG.radiusMeters = valid;
+      updateSmoothRadiusDisplay(valid);
+    }
+  });
+
+  // Button events
+  if (smoothPlus1Btn) {
+    smoothPlus1Btn.addEventListener('click', () => {
+      const current = SMOOTH_CONFIG.radiusMeters;
+      setSmoothRadius(current + 1);
+    });
+  }
+
+  if (smoothPlus100Btn) {
+    smoothPlus100Btn.addEventListener('click', () => {
+      const current = SMOOTH_CONFIG.radiusMeters;
+      setSmoothRadius(current + 100);
+    });
+  }
+
+  if (smoothMinus1Btn) {
+    smoothMinus1Btn.addEventListener('click', () => {
+      const current = SMOOTH_CONFIG.radiusMeters;
+      setSmoothRadius(current - 1);
+    });
+  }
+
+  if (smoothMinus100Btn) {
+    smoothMinus100Btn.addEventListener('click', () => {
+      const current = SMOOTH_CONFIG.radiusMeters;
+      setSmoothRadius(current - 100);
+    });
+  }
+
+  // Keyboard shortcuts
+  smoothRadiusInput.addEventListener('keydown', (e) => {
+    const current = SMOOTH_CONFIG.radiusMeters;
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSmoothRadius(current + 1);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSmoothRadius(current - 1);
+    } else if (e.key === 'PageUp') {
+      e.preventDefault();
+      setSmoothRadius(current + 100);
+    } else if (e.key === 'PageDown') {
+      e.preventDefault();
+      setSmoothRadius(current - 100);
+    }
   });
 }
 

@@ -78,11 +78,18 @@
           <span class="accordion-toggle">▼</span>
         </button>
         <div class="accordion-content">
-          <div class="slider-row">
-            <input id="smooth-radius" type="range" min="1" max="100" step="1" value="20" />
-            <span id="smooth-radius-value">20 m</span>
+          <div class="smooth-radius-control">
+            <div class="smooth-input-row">
+              <input id="smooth-radius" type="number" min="1" max="10000" step="1" value="20" class="smooth-number-input" />
+              <span id="smooth-radius-unit" class="smooth-unit">m</span>
+              <button id="smooth-plus-1" class="smooth-btn">+1m</button>
+              <button id="smooth-plus-100" class="smooth-btn">+100m</button>
+              <button id="smooth-minus-1" class="smooth-btn">-1m</button>
+              <button id="smooth-minus-100" class="smooth-btn">-100m</button>
+            </div>
+            <div id="smooth-radius-km" class="smooth-km-display"></div>
           </div>
-          <div class="hint">拖动调节联动平滑影响范围（单位：米，约 1–100 m）</div>
+          <div class="hint">输入或点击按钮调节联动平滑影响范围（单位：米，范围：1-10000 m，即 1 m-10 km）</div>
         </div>
       </section>
 

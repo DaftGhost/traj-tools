@@ -160,6 +160,74 @@ body {
   gap: 8px;
 }
 
+/* ==========================================
+   平滑半径控制样式
+   ========================================== */
+.smooth-radius-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.smooth-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.smooth-number-input {
+  width: 80px;
+  padding: 6px 8px;
+  border: 1px solid #c7ced9;
+  border-radius: 6px;
+  font-size: 14px;
+  text-align: center;
+  font-family: inherit;
+}
+
+.smooth-number-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.smooth-unit {
+  font-size: 14px;
+  font-weight: 500;
+  color: #334155;
+  min-width: 20px;
+}
+
+.smooth-btn {
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid #c7ced9;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.smooth-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.smooth-btn:active {
+  background: #e2e8f0;
+  transform: translateY(1px);
+}
+
+.smooth-km-display {
+  font-size: 12px;
+  color: #64748b;
+  margin-left: 4px;
+  font-weight: 500;
+}
+
 .checkbox-row {
   display: flex;
   align-items: center;
@@ -175,7 +243,7 @@ body {
 }
 
 #smooth-radius {
-  flex: 1;
+  flex: none; /* Override old flex: 1 from slider */
 }
 
 button {
