@@ -2063,6 +2063,46 @@ function sqSegDist(p, a, b) {
   return dx * dx + dy * dy;
 }
 
+// =========================
+// 方位计算函数
+// =========================
+
+/**
+ * 将方位角转换为方向缩写
+ * @param {number} bearing - 方位角 (0-360度)
+ * @returns {string} 方向缩写 (N/NE/E/SE/S/SW/W/NW)
+ */
+function bearingToDirection(bearing) {
+  if (bearing >= 337.5 || bearing < 22.5) return 'N';
+  if (bearing >= 22.5 && bearing < 67.5) return 'NE';
+  if (bearing >= 67.5 && bearing < 112.5) return 'E';
+  if (bearing >= 112.5 && bearing < 157.5) return 'SE';
+  if (bearing >= 157.5 && bearing < 202.5) return 'S';
+  if (bearing >= 202.5 && bearing < 247.5) return 'SW';
+  if (bearing >= 247.5 && bearing < 292.5) return 'W';
+  return 'NW'; // 292.5 - 337.5
+}
+
+/**
+ * 计算两点间的方位角 (Haversine公式)
+ * @param {number} lat1 - 起点纬度
+ * @param {number} lon1 - 起点经度
+ * @param {number} lat2 - 终点纬度
+ * @param {number} lon2 - 终点经度
+ * @returns {number} 方位角 (0-360度)
+ */
+function calculateBearing(lat1, lon1, lat2, lon2) {
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  const θ = Math.atan2(y, x);
+
+  return (θ * 180 / Math.PI + 360) % 360;
+}
+
 function exportData() {
   const format = exportFormatSelect ? exportFormatSelect.value : 'csv';
   const visibleRoutes = routes.filter((r) => r.visible);
@@ -2081,58 +2121,128 @@ function exportData() {
 function exportCsv(visibleRoutes) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   visibleRoutes.forEach((route, rIdx) => {
-    const rows = route.points.map((p, idx) => ({
+    if (route.points.length < 2) {
+      // 单点航线，使用简单文件名
+      const rows = route.points.map((p, idx) => ({
+        route_id: route.name,
+        seq: idx,
+        lat: p.lat,
+        lon: p.lon,
+        ...p.props,
+      }));
+      const csv = Papa.unparse(rows);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const safeName =
+        route.name.replace(/[^a-zA-Z0-9._-]/g, '_') || `route_${rIdx + 1}`;
+      saveAs(blob, `${safeName}-${stamp}.csv`);
+      return;
+    }
+
+    const startBearing = calculateBearing(
+      route.points[0].lat, route.points[0].lon,
+      route.points[route.points.length - 1].lat, route.points[route.points.length - 1].lon
+    );
+    const endBearing = calculateBearing(
+      route.points[route.points.length - 1].lat, route.points[route.points.length - 1].lon,
+      route.points[0].lat, route.points[0].lon
+    );
+    const startDir = bearingToDirection(startBearing);
+    const endDir = bearingToDirection(endBearing);
+    const safeName =
+      route.name.replace(/[^a-zA-Z0-9._-]/g, '_') || `route_${rIdx + 1}`;
+
+    // 正序导出
+    const forwardRows = route.points.map((p, idx) => ({
       route_id: route.name,
       seq: idx,
       lat: p.lat,
       lon: p.lon,
       ...p.props,
     }));
-    const csv = Papa.unparse(rows);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const safeName =
-      route.name.replace(/[^a-zA-Z0-9._-]/g, '_') || `route_${rIdx + 1}`;
-    saveAs(blob, `${safeName}-${stamp}.csv`);
+    const forwardCsv = Papa.unparse(forwardRows);
+    const forwardBlob = new Blob([forwardCsv], { type: 'text/csv;charset=utf-8;' });
+    saveAs(forwardBlob, `${safeName}_${startDir}_to_${endDir}-${stamp}.csv`);
+
+    // 逆序导出 (seq 重新编号)
+    const reverseRows = route.points.slice().reverse().map((p, idx) => ({
+      route_id: route.name,
+      seq: idx,
+      lat: p.lat,
+      lon: p.lon,
+      ...p.props,
+    }));
+    const reverseCsv = Papa.unparse(reverseRows);
+    const reverseBlob = new Blob([reverseCsv], { type: 'text/csv;charset=utf-8;' });
+    saveAs(reverseBlob, `${safeName}_${endDir}_to_${startDir}-${stamp}.csv`);
   });
-  setStatus(`已导出 ${visibleRoutes.length} 条可见航线 (CSV)`);
+  setStatus(`已导出 ${visibleRoutes.length} 条可见航线的正序和逆序 (CSV)`);
 }
 
 function exportGeoJson(visibleRoutes) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 
-  // Create FeatureCollection
-  const featureCollection = {
-    type: 'FeatureCollection',
-    features: visibleRoutes.map((route) => {
-      // GeoJSON uses [lon, lat] coordinate order
-      const coordinates = route.points.map((p) => {
-        const coord = [p.lon, p.lat];
-        // Include elevation if available
-        if (p.props && p.props.elevation) {
-          coord.push(Number(p.props.elevation));
-        }
-        return coord;
-      });
+  // 辅助函数：创建 GeoJSON Feature
+  const createFeature = (points, route) => {
+    const coordinates = points.map((p) => {
+      const coord = [p.lon, p.lat];
+      if (p.props && p.props.elevation) {
+        coord.push(Number(p.props.elevation));
+      }
+      return coord;
+    });
 
-      return {
-        type: 'Feature',
-        properties: {
-          name: route.name,
-          color: route.color,
-          pointCount: route.points.length,
-        },
-        geometry: {
-          type: 'LineString',
-          coordinates: coordinates,
-        },
-      };
-    }),
+    return {
+      type: 'Feature',
+      properties: {
+        name: route.name,
+        color: route.color,
+        pointCount: points.length,
+      },
+      geometry: {
+        type: 'LineString',
+        coordinates: coordinates,
+      },
+    };
   };
 
-  const geojson = JSON.stringify(featureCollection, null, 2);
-  const blob = new Blob([geojson], { type: 'application/json;charset=utf-8;' });
-  saveAs(blob, `routes-${stamp}.geojson`);
-  setStatus(`已导出 ${visibleRoutes.length} 条可见航线 (GeoJSON)`);
+  visibleRoutes.forEach((route, rIdx) => {
+    const safeName =
+      route.name.replace(/[^a-zA-Z0-9._-]/g, '_') || `route_${rIdx + 1}`;
+
+    if (route.points.length < 2) {
+      // 单点航线，使用简单文件名
+      const feature = createFeature(route.points, route);
+      const geojson = JSON.stringify(feature, null, 2);
+      const blob = new Blob([geojson], { type: 'application/json;charset=utf-8;' });
+      saveAs(blob, `${safeName}-${stamp}.geojson`);
+      return;
+    }
+
+    const startBearing = calculateBearing(
+      route.points[0].lat, route.points[0].lon,
+      route.points[route.points.length - 1].lat, route.points[route.points.length - 1].lon
+    );
+    const endBearing = calculateBearing(
+      route.points[route.points.length - 1].lat, route.points[route.points.length - 1].lon,
+      route.points[0].lat, route.points[0].lon
+    );
+    const startDir = bearingToDirection(startBearing);
+    const endDir = bearingToDirection(endBearing);
+
+    // 正序导出
+    const forwardFeature = createFeature(route.points, route);
+    const forwardGeojson = JSON.stringify(forwardFeature, null, 2);
+    const forwardBlob = new Blob([forwardGeojson], { type: 'application/json;charset=utf-8;' });
+    saveAs(forwardBlob, `${safeName}_${startDir}_to_${endDir}-${stamp}.geojson`);
+
+    // 逆序导出
+    const reverseFeature = createFeature(route.points.slice().reverse(), route);
+    const reverseGeojson = JSON.stringify(reverseFeature, null, 2);
+    const reverseBlob = new Blob([reverseGeojson], { type: 'application/json;charset=utf-8;' });
+    saveAs(reverseBlob, `${safeName}_${endDir}_to_${startDir}-${stamp}.geojson`);
+  });
+
+  setStatus(`已导出 ${visibleRoutes.length} 条可见航线的正序和逆序 (GeoJSON)`);
 }
 
 // =========================
