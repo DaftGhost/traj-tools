@@ -568,3 +568,22 @@ button:disabled {
   background: #fef2f2;
   border-color: #fca5a5;
 }
+
+/* ==========================================
+   手动绘制航线模式样式
+   ========================================== */
+button.drawing-mode {
+  background: #16a34a !important;
+  color: #fff !important;
+  border-color: #15803d !important;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}

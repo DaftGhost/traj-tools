@@ -78,6 +78,16 @@ document.addEventListener('keydown', (e) => {
     if (e.key === '3') toggleAccordion('export');
     if (e.key === '4') toggleAccordion('segment');
   }
+
+  // ESC键：取消新建航线绘制
+  if (e.key === 'Escape' && pendingNewRoute) {
+    cancelNewRouteDrawing();
+  }
+
+  // Enter键：完成新建航线绘制
+  if (e.key === 'Enter' && pendingNewRoute) {
+    finishNewRouteDrawing();
+  }
 });
 
 // ==========================================
@@ -310,6 +320,8 @@ const routes = [];
 let selectedRouteId = null;
 let selectedPoint = null; // {routeId, pointIdx}
 let pendingAdd = false;
+let pendingNewRoute = false; // 手动绘制新航线模式
+let drawingRouteId = null; // 正在绘制的航线ID
 
 // 轻量编辑：单活动句柄（避免 6000 个可拖拽节点导致卡顿）
 let editHandle = null; // { routeId, idx, marker }
@@ -321,6 +333,7 @@ const fileInput = document.querySelector('#file-input');
 const toggleEditBtn = document.querySelector('#toggle-edit');
 const addNodeBtn = document.querySelector('#add-node');
 const deleteNodeBtn = document.querySelector('#delete-node');
+const newRouteBtn = document.querySelector('#new-route');
 const fitBoundsBtn = document.querySelector('#fit-bounds');
 const exportBtn = document.querySelector('#export-btn');
 const exportFormatSelect = document.querySelector('#export-format');
@@ -354,10 +367,20 @@ fileInput.addEventListener('change', handleFiles);
 toggleEditBtn.addEventListener('click', toggleEditMode);
 addNodeBtn.addEventListener('click', toggleAddMode);
 deleteNodeBtn.addEventListener('click', deleteSelectedNode);
+if (newRouteBtn) {
+  newRouteBtn.addEventListener('click', () => {
+    if (pendingNewRoute) {
+      cancelNewRouteDrawing();
+    } else {
+      startNewRouteDrawing();
+    }
+  });
+}
 fitBoundsBtn.addEventListener('click', fitAllBounds);
 exportBtn.addEventListener('click', exportData);
 map.on('click', onMapClick);
 map.on('mousemove', onMapMouseMove);
+map.on('dblclick', onMapDoubleClick);
 map.on('zoomend', () => {
   updateAllRoutesDisplayGeometry();
   if (measure.active) renderMeasure(); // zoom 变化会影响吸附与显示
@@ -790,7 +813,7 @@ function addRoute({ name, points }) {
   const color = palette[paletteIdx % palette.length];
   paletteIdx += 1;
 
-  // polyline 只渲染“显示几何”（可简化）；原始几何保留在 route.points
+  // polyline 只渲染"显示几何"（可简化）；原始几何保留在 route.points
   const polyline = L.polyline([], {
     color,
     weight: 3,
@@ -819,6 +842,134 @@ function addRoute({ name, points }) {
   refreshRoutesList();
   fitAllBounds();
   selectRoute(id);
+}
+
+// ==========================================
+// 手动绘制新航线功能
+// ==========================================
+
+/**
+ * 创建一个新的空航线，使用时间戳命名
+ */
+function createNewRoute() {
+  const now = new Date();
+  const timestamp = now
+    .toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+    .replace(/\//g, '-')
+    .replace(',', '');
+
+  const routeName = `航线 ${timestamp}`;
+
+  // 创建空航线
+  addRoute({ name: routeName, points: [] });
+
+  // 获取刚创建的航线（数组中最后一个）
+  const newRoute = routes[routes.length - 1];
+
+  // 自动开启编辑并选中
+  newRoute.editable = true;
+  selectRoute(newRoute.id);
+
+  setStatus(`已创建新航线: ${routeName}，点击地图添加起点`);
+
+  return newRoute.id;
+}
+
+/**
+ * 开始绘制新航线
+ */
+function startNewRouteDrawing() {
+  // 退出其他模式
+  if (pendingAdd) {
+    pendingAdd = false;
+    updateAddNodeButton();
+  }
+
+  if (measure.active) {
+    clearMeasure({ exit: true });
+  }
+
+  if (segmentExport.active) {
+    clearSegmentExport({ exit: true });
+  }
+
+  // 创建并开始绘制新航线
+  const newRouteId = createNewRoute();
+  drawingRouteId = newRouteId;
+  pendingNewRoute = true;
+
+  updateNewRouteButton();
+  setStatus('新建航线模式：单击地图添加点，双击结束绘制');
+}
+
+/**
+ * 更新新建航线按钮外观
+ */
+function updateNewRouteButton() {
+  if (newRouteBtn) {
+    if (pendingNewRoute) {
+      newRouteBtn.textContent = '结束新建';
+      newRouteBtn.classList.add('drawing-mode');
+    } else {
+      newRouteBtn.textContent = '新建航线';
+      newRouteBtn.classList.remove('drawing-mode');
+    }
+  }
+}
+
+/**
+ * 完成绘制新航线
+ */
+function finishNewRouteDrawing() {
+  const route = getRoute(drawingRouteId);
+
+  if (!route) {
+    setStatus('错误：找不到正在绘制的航线');
+    cancelNewRouteDrawing();
+    return;
+  }
+
+  const pointCount = route.points.length;
+
+  if (pointCount === 0) {
+    deleteRoute(drawingRouteId);
+    setStatus('已取消：航线没有添加任何点，已自动删除');
+  } else if (pointCount === 1) {
+    setStatus(`警告：航线只有1个点，至少需要2个点才能显示航线`);
+  } else {
+    setStatus(`完成：航线 "${route.name}" 已创建，共 ${pointCount} 个点`);
+  }
+
+  pendingNewRoute = false;
+  drawingRouteId = null;
+  updateNewRouteButton();
+
+  refreshRoutesList();
+}
+
+/**
+ * 取消绘制新航线
+ */
+function cancelNewRouteDrawing() {
+  if (drawingRouteId) {
+    const route = getRoute(drawingRouteId);
+    if (route && route.points.length === 0) {
+      deleteRoute(drawingRouteId);
+    }
+  }
+
+  pendingNewRoute = false;
+  drawingRouteId = null;
+  updateNewRouteButton();
+
+  setStatus('已取消新建航线');
 }
 
 function buildMarkerIcon(color, selected = false) {
@@ -1040,6 +1191,12 @@ function toggleRoute(routeId, visible) {
 }
 
 function selectRoute(routeId) {
+  // 如果正在绘制新航线，不允许切换到其他航线
+  if (pendingNewRoute && drawingRouteId !== routeId) {
+    setStatus('请先完成或取消当前航线绘制');
+    return;
+  }
+
   selectedRouteId = routeId;
   selectedPoint = null;
   if (editHandle && editHandle.routeId !== routeId) {
@@ -1052,11 +1209,38 @@ function selectRoute(routeId) {
       opacity: highlighted ? 1 : 0.7,
     });
   });
-  updateEditButtonText();
-  updateEditButtonsState();
-  setStatus(
-    `选中航线: ${getRoute(routeId)?.name ?? '无'}${getRoute(routeId)?.editable ? '（可编辑）' : '（锁定）'}`
-  );
+
+  // 自动选中航线的最后一个点
+  const route = getRoute(routeId);
+  if (route && route.points.length > 0 && route.editable) {
+    const lastPointIdx = route.points.length - 1;
+
+    // 如果是单节点航线，确保标记已显示
+    if (route.points.length === 1 && route.markers.length === 0) {
+      applyEditableToRoute(route);
+    }
+
+    // 设置编辑句柄到最后一个点
+    setEditHandle(routeId, lastPointIdx);
+
+    // 如果已经有标记数组，更新标记图标显示选中状态
+    if (route.markers.length > lastPointIdx) {
+      route.markers.forEach((m, i) => {
+        m.setIcon(buildMarkerIcon(route.color, i === lastPointIdx));
+      });
+    }
+
+    selectedPoint = { routeId, pointIdx: lastPointIdx };
+    setStatus(
+      `选中航线: ${route.name}（已选中最后节点 ${lastPointIdx + 1}/${route.points.length}）`
+    );
+  } else {
+    updateEditButtonText();
+    updateEditButtonsState();
+    setStatus(
+      `选中航线: ${route?.name ?? '无'}${route?.editable ? '（可编辑）' : '（锁定）'}`
+    );
+  }
 }
 
 function selectMarker(routeId, idx) {
@@ -1094,9 +1278,30 @@ function toggleEditMode() {
     setStatus('当前航线已隐藏，无法编辑');
     return;
   }
+
+  // 检查空航线：关闭编辑时自动删除
+  if (route.editable && route.points.length === 0) {
+    const confirmed = confirm(
+      `航线 "${route.name}" 没有任何点，关闭编辑将自动删除此航线。\n\n是否继续？`
+    );
+    if (confirmed) {
+      deleteRoute(selectedRouteId);
+      setStatus(`已删除空航线: ${route.name}`);
+      return;
+    } else {
+      setStatus('保持编辑状态');
+      return;
+    }
+  }
+
   route.editable = !route.editable;
   if (!route.editable) {
     pendingAdd = false;
+
+    // 如果正在绘制新航线，也取消绘制
+    if (pendingNewRoute && drawingRouteId === selectedRouteId) {
+      cancelNewRouteDrawing();
+    }
   }
   applyEditableToRoute(route);
   updateRouteDisplayGeometry(route);
@@ -1109,7 +1314,7 @@ function toggleEditMode() {
 }
 
 function applyEditableToRoute(route) {
-  // 编辑态：使用“单活动句柄”，避免 6000 个可拖拽节点导致卡顿
+  // 编辑态：使用"单活动句柄"，避免 6000 个可拖拽节点导致卡顿
   // 非编辑态：不显示节点 marker
   if (route.editable) {
     if (!route.visible) return;
@@ -1119,6 +1324,43 @@ function applyEditableToRoute(route) {
     route.markers = [];
     // 进入编辑态时清空句柄，让用户单击航线选择节点
     clearEditHandle();
+
+    // 特殊处理：单节点航线自动显示节点标记
+    if (route.points.length === 1) {
+      const point = route.points[0];
+      const marker = L.marker([point.lat, point.lon], {
+        icon: buildMarkerIcon(route.color, true),
+        draggable: true,
+      }).addTo(map);
+
+      marker.on('dragstart', () => {
+        dragContext = {
+          routeId: route.id,
+          pointIdx: 0,
+          lat: point.lat,
+          lon: point.lon,
+        };
+      });
+
+      marker.on('drag', (e) => {
+        const { lat, lng } = e.latlng;
+        point.lat = lat;
+        point.lon = lng;
+        route.polyline.setLatLngs([[lat, lng]]);
+        markRouteDirty(route.id);
+      });
+
+      marker.on('dragend', () => {
+        const orig = dragContext;
+        if (!orig) return;
+        smoothUpdatePoint(orig.routeId, orig.pointIdx);
+        dragContext = null;
+        updateRouteDisplayGeometry(route);
+      });
+
+      route.markers.push(marker);
+      setEditHandle(route.id, 0);
+    }
   } else {
     cancelBuildRouteMarkers(route);
     route.markers.forEach((m) => map.removeLayer(m));
@@ -1485,6 +1727,41 @@ function onMapClick(e) {
     addMeasurePointFromLatLng(e.latlng);
     return;
   }
+
+  // 处理新建航线绘制模式
+  if (pendingNewRoute) {
+    const { lat, lng } = e.latlng;
+    const route = getRoute(drawingRouteId);
+
+    if (!route || !route.editable) {
+      setStatus('错误：无法找到正在绘制的航线');
+      cancelNewRouteDrawing();
+      return;
+    }
+
+    // 添加点到航线末尾
+    const newPoint = { lat, lon: lng, props: {}, seq: route.points.length };
+    route.points.push(newPoint);
+
+    // 更新polyline
+    route.polyline.setLatLngs(route.points.map((p) => [p.lat, p.lon]));
+    updateRouteDisplayGeometry(route);
+
+    // 如果是第一个点，需要调用 applyEditableToRoute 来显示标记
+    if (route.points.length === 1) {
+      applyEditableToRoute(route);
+    }
+
+    setEditHandle(route.id, route.points.length - 1);
+    markRouteDirty(route.id);
+
+    const pointNum = route.points.length;
+    setStatus(`已添加第 ${pointNum} 个点，继续点击添加，双击结束`);
+
+    return;
+  }
+
+  // 处理现有的添加节点模式
   if (!pendingAdd) return;
   const { lat, lng } = e.latlng;
   const route = getRoute(selectedRouteId);
@@ -1571,6 +1848,19 @@ function deleteSelectedNode() {
   updateRouteDisplayGeometry(route);
   if (measure.active) renderMeasure();
   setStatus('节点已删除');
+}
+
+function onMapDoubleClick(e) {
+  // 只在新建航线绘制模式下处理双击
+  if (pendingNewRoute && drawingRouteId) {
+    e.originalEvent.preventDefault();
+    e.originalEvent.stopPropagation();
+    finishNewRouteDrawing();
+    return;
+  }
+
+  // 默认行为：放大到点击位置
+  map.zoomIn();
 }
 
 function confirmDeleteRoute(routeId) {
