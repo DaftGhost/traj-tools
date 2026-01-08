@@ -1,0 +1,26 @@
+{
+  "name": "fine-tuning-traj",
+  "version": "1.0.0",
+  "description": "Geographic route/trajectory editor - Leaflet-based SPA",
+  "scripts": {
+    "lint": "eslint *.js",
+    "lint:fix": "eslint *.js --fix",
+    "format": "prettier --write \"*.{js,html,css}\"",
+    "format:check": "prettier --check \"*.{js,html,css}\""
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.5"
+  },
+  "keywords": [
+    "leaflet",
+    "geographic",
+    "route",
+    "trajectory",
+    "editor",
+    "map",
+    "visualization"
+  ],
+  "author": "",
+  "license": "MIT"
+}
