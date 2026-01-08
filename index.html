@@ -1,177 +1,231 @@
 <!doctype html>
 <html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>航线编辑器</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <link rel="stylesheet" href="style.css?v=20251218-7" />
+  </head>
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>航线编辑器</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css?v=20251218-7" />
-</head>
+  <body>
+    <div id="app">
+      <aside class="panel">
+        <h1>航线编辑器 <span class="version">v20251218-7</span></h1>
 
-<body>
-  <div id="app">
-    <aside class="panel">
-      <h1>航线编辑器 <span class="version">v20251218-7</span></h1>
-
-      <!-- 永久可见: 文件导入 -->
-      <section class="block permanent">
-        <label class="btn">
-          选择CSV/GeoJSON(可多选)
-          <input id="file-input" type="file" accept=".csv,.geojson,.json" multiple />
-        </label>
-        <div class="hint">CSV需包含 lat/lon 列；GeoJSON支持 LineString/MultiLineString</div>
-      </section>
-
-      <!-- 永久可见: 底图选择 -->
-      <section class="block permanent">
-        <h2>底图选择</h2>
-        <select id="map-select" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #c7ced9;">
-          <option value="osm">标准地图 (OpenStreetMap)</option>
-          <option value="satellite">卫星图 (Esri World Imagery)</option>
-          <option value="cartoDark">暗色模式 (CartoDB Dark)</option>
-          <option value="cartoLight">亮色模式 (CartoDB Light)</option>
-        </select>
-      </section>
-
-      <!-- 永久可见: 编辑控制 -->
-      <section class="block permanent">
-        <h2>编辑控制</h2>
-        <div class="controls">
-          <button id="toggle-edit" class="primary">开启编辑</button>
-          <button id="add-node">添加节点</button>
-          <button id="delete-node">删除节点</button>
-          <button id="fit-bounds">重置视图</button>
-        </div>
-      </section>
-
-      <!-- 可折叠: 测距工具 -->
-      <section class="accordion collapsed" data-section="measure">
-        <button class="accordion-header">
-          <span class="accordion-icon">📏</span>
-          <span class="accordion-title">测距工具</span>
-          <span class="accordion-toggle">▼</span>
-        </button>
-        <div class="accordion-content">
-          <div class="controls">
-            <button id="toggle-measure" class="primary">开启测距</button>
-            <button id="clear-measure" disabled>清除</button>
-          </div>
-          <label class="checkbox-row">
-            <input id="measure-snap-enabled" type="checkbox" checked />
-            吸附到航线
+        <!-- 永久可见: 文件导入 -->
+        <section class="block permanent">
+          <label class="btn">
+            选择CSV/GeoJSON(可多选)
+            <input
+              id="file-input"
+              type="file"
+              accept=".csv,.geojson,.json"
+              multiple
+            />
           </label>
-          <label class="checkbox-row">
-            <input id="measure-snap-selected-only" type="checkbox" checked />
-            仅吸附当前选中航线
-          </label>
-          <div class="hint">测距模式：单击添加点；移动鼠标预览下一段；Esc 清空并退出；Backspace 撤销上一点。</div>
-          <div id="measure-result" class="measure-result">未开启</div>
-        </div>
-      </section>
-
-      <!-- 可折叠: 平滑半径 -->
-      <section class="accordion collapsed" data-section="smooth">
-        <button class="accordion-header">
-          <span class="accordion-icon">〰️</span>
-          <span class="accordion-title">平滑半径</span>
-          <span class="accordion-toggle">▼</span>
-        </button>
-        <div class="accordion-content">
-          <div class="smooth-radius-control">
-            <div class="smooth-input-row">
-              <input id="smooth-radius" type="number" min="1" max="10000" step="1" value="20" class="smooth-number-input" />
-              <span id="smooth-radius-unit" class="smooth-unit">m</span>
-              <button id="smooth-plus-1" class="smooth-btn">+1m</button>
-              <button id="smooth-plus-100" class="smooth-btn">+100m</button>
-              <button id="smooth-minus-1" class="smooth-btn">-1m</button>
-              <button id="smooth-minus-100" class="smooth-btn">-100m</button>
-            </div>
-            <div id="smooth-radius-km" class="smooth-km-display"></div>
+          <div class="hint">
+            CSV需包含 lat/lon 列；GeoJSON支持 LineString/MultiLineString
           </div>
-          <div class="hint">输入或点击按钮调节联动平滑影响范围（单位：米，范围：1-10000 m，即 1 m-10 km）</div>
-        </div>
-      </section>
+        </section>
 
-      <!-- 可折叠: 导出 -->
-      <section class="accordion collapsed" data-section="export">
-        <button class="accordion-header">
-          <span class="accordion-icon">💾</span>
-          <span class="accordion-title">导出</span>
-          <span class="accordion-toggle">▼</span>
-        </button>
-        <div class="accordion-content">
-          <select id="export-format" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #c7ced9; margin-bottom: 8px;">
-            <option value="csv">CSV格式</option>
-            <option value="geojson">GeoJSON格式</option>
+        <!-- 永久可见: 底图选择 -->
+        <section class="block permanent">
+          <h2>底图选择</h2>
+          <select
+            id="map-select"
+            style="
+              width: 100%;
+              padding: 8px;
+              border-radius: 6px;
+              border: 1px solid #c7ced9;
+            "
+          >
+            <option value="tdtVector" selected>天地图矢量</option>
+            <option value="tdtSatellite">天地图影像</option>
+            <option value="tdtTerrain">天地图地形</option>
+            <option value="osm">标准地图 (OpenStreetMap)</option>
+            <option value="satellite">卫星图 (Esri World Imagery)</option>
+            <option value="cartoDark">暗色模式 (CartoDB Dark)</option>
+            <option value="cartoLight">亮色模式 (CartoDB Light)</option>
           </select>
+        </section>
+
+        <!-- 永久可见: 编辑控制 -->
+        <section class="block permanent">
+          <h2>编辑控制</h2>
           <div class="controls">
-            <button id="export-btn" class="primary">导出</button>
+            <button id="toggle-edit" class="primary">开启编辑</button>
+            <button id="add-node">添加节点</button>
+            <button id="delete-node">删除节点</button>
+            <button id="fit-bounds">重置视图</button>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- 可折叠: 片段截取 -->
-      <section class="accordion collapsed" data-section="segment">
-        <button class="accordion-header">
-          <span class="accordion-icon">✂️</span>
-          <span class="accordion-title">片段截取</span>
-          <span class="accordion-toggle">▼</span>
-        </button>
-        <div class="accordion-content">
-          <div class="controls">
-            <button id="toggle-segment-export" class="primary">开启片段截取</button>
-            <button id="export-segment" disabled>导出片段</button>
+        <!-- 可折叠: 测距工具 -->
+        <section class="accordion collapsed" data-section="measure">
+          <button class="accordion-header">
+            <span class="accordion-icon">📏</span>
+            <span class="accordion-title">测距工具</span>
+            <span class="accordion-toggle">▼</span>
+          </button>
+          <div class="accordion-content">
+            <div class="controls">
+              <button id="toggle-measure" class="primary">开启测距</button>
+              <button id="clear-measure" disabled>清除</button>
+            </div>
+            <label class="checkbox-row">
+              <input id="measure-snap-enabled" type="checkbox" checked />
+              吸附到航线
+            </label>
+            <label class="checkbox-row">
+              <input id="measure-snap-selected-only" type="checkbox" checked />
+              仅吸附当前选中航线
+            </label>
+            <div class="hint">
+              测距模式：单击添加点；移动鼠标预览下一段；Esc
+              清空并退出；Backspace 撤销上一点。
+            </div>
+            <div id="measure-result" class="measure-result">未开启</div>
           </div>
-          <div class="slider-row">
-            <input id="segment-search-radius" type="range" min="1" max="200" step="1" value="50" />
-            <span id="segment-search-radius-value">50 m</span>
+        </section>
+
+        <!-- 可折叠: 平滑半径 -->
+        <section class="accordion collapsed" data-section="smooth">
+          <button class="accordion-header">
+            <span class="accordion-icon">〰️</span>
+            <span class="accordion-title">平滑半径</span>
+            <span class="accordion-toggle">▼</span>
+          </button>
+          <div class="accordion-content">
+            <div class="smooth-radius-control">
+              <div class="smooth-input-row">
+                <input
+                  id="smooth-radius"
+                  type="number"
+                  min="1"
+                  max="10000"
+                  step="1"
+                  value="20"
+                  class="smooth-number-input"
+                />
+                <span id="smooth-radius-unit" class="smooth-unit">m</span>
+                <button id="smooth-plus-1" class="smooth-btn">+1m</button>
+                <button id="smooth-plus-100" class="smooth-btn">+100m</button>
+                <button id="smooth-minus-1" class="smooth-btn">-1m</button>
+                <button id="smooth-minus-100" class="smooth-btn">-100m</button>
+              </div>
+              <div id="smooth-radius-km" class="smooth-km-display"></div>
+            </div>
+            <div class="hint">
+              输入或点击按钮调节联动平滑影响范围（单位：米，范围：1-10000 m，即
+              1 m-10 km）
+            </div>
           </div>
-          <div class="hint">垂直搜索距离：在起点和终点处垂直于主航线向两侧延伸的距离</div>
-          <div id="segment-status" class="measure-result">未开启</div>
-        </div>
-      </section>
+        </section>
 
-      <!-- 状态显示 -->
-      <section class="block permanent">
-        <h2>状态</h2>
-        <div id="status" class="status">尚未加载数据</div>
-      </section>
-    </aside>
+        <!-- 可折叠: 导出 -->
+        <section class="accordion collapsed" data-section="export">
+          <button class="accordion-header">
+            <span class="accordion-icon">💾</span>
+            <span class="accordion-title">导出</span>
+            <span class="accordion-toggle">▼</span>
+          </button>
+          <div class="accordion-content">
+            <select
+              id="export-format"
+              style="
+                width: 100%;
+                padding: 8px;
+                border-radius: 6px;
+                border: 1px solid #c7ced9;
+                margin-bottom: 8px;
+              "
+            >
+              <option value="csv">CSV格式</option>
+              <option value="geojson">GeoJSON格式</option>
+            </select>
+            <div class="controls">
+              <button id="export-btn" class="primary">导出</button>
+            </div>
+          </div>
+        </section>
 
-    <main id="map"></main>
+        <!-- 可折叠: 片段截取 -->
+        <section class="accordion collapsed" data-section="segment">
+          <button class="accordion-header">
+            <span class="accordion-icon">✂️</span>
+            <span class="accordion-title">片段截取</span>
+            <span class="accordion-toggle">▼</span>
+          </button>
+          <div class="accordion-content">
+            <div class="controls">
+              <button id="toggle-segment-export" class="primary">
+                开启片段截取
+              </button>
+              <button id="export-segment" disabled>导出片段</button>
+            </div>
+            <div class="slider-row">
+              <input
+                id="segment-search-radius"
+                type="range"
+                min="1"
+                max="200"
+                step="1"
+                value="50"
+              />
+              <span id="segment-search-radius-value">50 m</span>
+            </div>
+            <div class="hint">
+              垂直搜索距离：在起点和终点处垂直于主航线向两侧延伸的距离
+            </div>
+            <div id="segment-status" class="measure-result">未开启</div>
+          </div>
+        </section>
 
-    <!-- 底部抽屉: 航线列表 -->
-    <div id="route-drawer" class="route-drawer collapsed">
-      <div class="drawer-header">
-        <div class="drawer-header-left">
-          <span class="drawer-icon">📍</span>
-          <h2>航线列表</h2>
-          <span class="route-count">(0)</span>
+        <!-- 状态显示 -->
+        <section class="block permanent">
+          <h2>状态</h2>
+          <div id="status" class="status">尚未加载数据</div>
+        </section>
+      </aside>
+
+      <main id="map"></main>
+
+      <!-- 底部抽屉: 航线列表 -->
+      <div id="route-drawer" class="route-drawer collapsed">
+        <div class="drawer-header">
+          <div class="drawer-header-left">
+            <span class="drawer-icon">📍</span>
+            <h2>航线列表</h2>
+            <span class="route-count">(0)</span>
+          </div>
+          <div class="drawer-search">
+            <input type="text" id="route-search" placeholder="搜索航线..." />
+          </div>
+          <button class="drawer-toggle" id="drawer-toggle" title="收起/展开">
+            <span class="toggle-icon">▼</span>
+          </button>
         </div>
-        <div class="drawer-search">
-          <input type="text" id="route-search" placeholder="搜索航线..." />
+        <div class="drawer-content">
+          <div class="drawer-actions">
+            <label class="checkbox-row">
+              <input id="select-all-routes" type="checkbox" />
+              <span>全选</span>
+            </label>
+          </div>
+          <div id="routes-list" class="routes-list"></div>
         </div>
-        <button class="drawer-toggle" id="drawer-toggle" title="收起/展开">
-          <span class="toggle-icon">▼</span>
-        </button>
-      </div>
-      <div class="drawer-content">
-        <div class="drawer-actions">
-          <label class="checkbox-row">
-            <input id="select-all-routes" type="checkbox" />
-            <span>全选</span>
-          </label>
-        </div>
-        <div id="routes-list" class="routes-list"></div>
       </div>
     </div>
-  </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-  <script type="module" src="main.js?v=20251218-7"></script>
-</body>
-
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <script src="config.js"></script>
+    <script type="module" src="main.js?v=20251218-7"></script>
+  </body>
 </html>
