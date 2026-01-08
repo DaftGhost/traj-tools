@@ -617,6 +617,34 @@ function handleFiles(evt) {
   fileInput.value = '';
 }
 
+/**
+ * 解析坐标值，支持多种格式
+ * - 十进制: 30.592888
+ * - 度分格式: 30°35.3733' (30 + 35.3733/60 = 30.592888)
+ * - 支持标准撇号(')和单引号(′)以及双引号(″)
+ */
+function parseCoordinate(value) {
+  // 尝试直接数字转换（十进制）
+  const num = Number(value);
+  if (Number.isFinite(num)) {
+    return num;
+  }
+
+  // 尝试度分格式: 120°13.6121' 或 30°35.3733'
+  // 兼容标准撇号(')、Unicode单引号(′)、双引号(″)等
+  // 先标准化为统一格式再匹配
+  const normalized = String(value).replace(/[′″]/g, "'");
+  const dmmMatch = normalized.match(/^(-?\d+)°([\d.]+)'$/);
+  if (dmmMatch) {
+    const degrees = Number(dmmMatch[1]);
+    const minutes = Number(dmmMatch[2]);
+    return degrees + minutes / 60;
+  }
+
+  // 未知格式返回 NaN
+  return NaN;
+}
+
 function parseCsvFile(file) {
   Papa.parse(file, {
     header: true,
@@ -638,8 +666,8 @@ function parseCsvFile(file) {
       }
       const points = [];
       data.forEach((row, idx) => {
-        const lat = Number(row[latKey]);
-        const lon = Number(row[lonKey]);
+        const lat = parseCoordinate(row[latKey]);
+        const lon = parseCoordinate(row[lonKey]);
         if (Number.isFinite(lat) && Number.isFinite(lon)) {
           const props = { ...row };
           delete props[latKey];
@@ -798,9 +826,11 @@ function parseGeoJsonGeometry(geometry, fileName) {
 function detectLatLonKeys(row) {
   const keys = Object.keys(row).map((k) => k.trim().toLowerCase());
   const rawKeys = Object.keys(row);
-  const latIdx = keys.findIndex((k) => ['lat', 'latitude', 'y'].includes(k));
+  const latIdx = keys.findIndex((k) =>
+    ['lat', 'latitude', 'y', '纬度'].includes(k)
+  );
   const lonIdx = keys.findIndex((k) =>
-    ['lon', 'lng', 'longitude', 'x'].includes(k)
+    ['lon', 'lng', 'longitude', 'x', '经度'].includes(k)
   );
   return {
     latKey: latIdx >= 0 ? rawKeys[latIdx] : null,
