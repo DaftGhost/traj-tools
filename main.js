@@ -14,146 +14,515 @@ console.warn = function (...args) {
 };
 
 // ==========================================
-// UI 状态管理
+// VSCode风格UI 状态管理
 // ==========================================
 const uiState = {
-  accordionStates: {
-    measure: false, // 测距工具: 默认收起
-    smooth: false, // 平滑半径: 默认收起
-    export: false, // 导出: 默认收起
-    segment: false, // 片段截取: 默认收起
-  },
-  drawerExpanded: false,
+  activePanel: 'files', // 当前活动的面板: files, edit, measure, export, settings
+  propertiesPanelCollapsed: false,
+  sideBarCollapsed: false,
   routeSearchQuery: '',
 };
 
 // ==========================================
-// 手风琴折叠功能
+// Activity Bar 和 Side Bar 面板切换
 // ==========================================
-function initializeAccordions() {
-  const accordions = document.querySelectorAll('.accordion');
+function initializePanelSwitching() {
+  // Activity Bar 图标点击
+  document.querySelectorAll('.activity-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const panel = item.dataset.panel;
+      if (panel === 'properties') {
+        // 属性面板特殊处理（底部图标）
+        togglePropertiesPanel();
+      } else {
+        switchToPanel(panel);
+      }
+    });
+  });
 
-  accordions.forEach((accordion) => {
-    const header = accordion.querySelector('.accordion-header');
-    const section = accordion.dataset.section;
-
-    // 设置初始状态
-    if (uiState.accordionStates[section]) {
-      accordion.classList.add('active');
-      accordion.classList.remove('collapsed');
-    } else {
-      accordion.classList.remove('active');
-      accordion.classList.add('collapsed');
-    }
-
-    // 添加点击处理
-    header.addEventListener('click', () => toggleAccordion(section));
+  // 可折叠子区域（平滑半径、片段截取）
+  document.querySelectorAll('.panel-subsection-header').forEach(header => {
+    header.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const content = header.nextElementSibling;
+      header.classList.toggle('collapsed');
+      content.classList.toggle('collapsed');
+    });
   });
 }
 
-function toggleAccordion(section) {
-  const accordion = document.querySelector(
-    `.accordion[data-section="${section}"]`
-  );
-  if (!accordion) return;
-
-  const isExpanded = accordion.classList.contains('active');
-
-  if (isExpanded) {
-    accordion.classList.remove('active');
-    accordion.classList.add('collapsed');
-    uiState.accordionStates[section] = false;
-  } else {
-    accordion.classList.add('active');
-    accordion.classList.remove('collapsed');
-    uiState.accordionStates[section] = true;
-  }
+function toggleSidebar() {
+  const workbench = document.querySelector('.workbench');
+  uiState.sideBarCollapsed = !uiState.sideBarCollapsed;
+  workbench.classList.toggle('sidebar-collapsed', uiState.sideBarCollapsed);
+  // 侧边栏收起/展开后重新计算地图尺寸
+  setTimeout(() => {
+    if (map) map.invalidateSize();
+  }, 300);
 }
 
-// 键盘快捷键: Alt + 1/2/3/4 切换各个区块
-document.addEventListener('keydown', (e) => {
-  if (e.altKey) {
-    if (e.key === '1') toggleAccordion('measure');
-    if (e.key === '2') toggleAccordion('smooth');
-    if (e.key === '3') toggleAccordion('export');
-    if (e.key === '4') toggleAccordion('segment');
-  }
-
-  // ESC键：取消新建航线绘制
-  if (e.key === 'Escape' && pendingNewRoute) {
-    cancelNewRouteDrawing();
-  }
-
-  // Enter键：完成新建航线绘制
-  if (e.key === 'Enter' && pendingNewRoute) {
-    finishNewRouteDrawing();
-  }
-});
-
-// ==========================================
-// 底部抽屉功能
-// ==========================================
-function initializeDrawer() {
-  const drawer = document.getElementById('route-drawer');
-  const toggleBtn = document.getElementById('drawer-toggle');
-  const searchInput = document.getElementById('route-search');
-  const selectAllCheckbox = document.getElementById('select-all-routes');
-
-  if (!drawer || !toggleBtn || !searchInput || !selectAllCheckbox) {
-    console.warn('抽屉元素未找到，跳过初始化');
+function switchToPanel(panelName) {
+  // 如果点击的是当前活动的面板，则折叠侧边栏
+  if (uiState.activePanel === panelName) {
+    toggleSidebar();
     return;
   }
 
-  // 切换抽屉
-  toggleBtn.addEventListener('click', () => toggleDrawer());
-
-  // 搜索功能
-  searchInput.addEventListener('input', (e) => {
-    uiState.routeSearchQuery = e.target.value.toLowerCase();
-    filterRoutes();
+  // 更新 Activity Bar 状态
+  document.querySelectorAll('.activity-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.panel === panelName);
   });
 
-  // 全选功能
-  selectAllCheckbox.addEventListener('change', (e) => {
-    const checked = e.target.checked;
-    routes.forEach((route) => {
-      if (isRouteVisible(route)) {
-        route.visible = checked;
-        // 更新 UI 中的复选框
-        const checkbox = document.querySelector(
-          `.route-item-checkbox[data-route-id="${route.id}"]`
-        );
-        if (checkbox) checkbox.checked = checked;
-        // 更新航线可见性
-        if (route._display && route._display.layer) {
-          if (route.visible) {
-            route._display.layer.addTo(map);
-          } else {
-            map.removeLayer(route._display.layer);
-          }
+  // 更新面板内容显示
+  document.querySelectorAll('.panel-view').forEach(view => {
+    view.classList.toggle('active', view.dataset.panel === panelName);
+  });
+
+  uiState.activePanel = panelName;
+}
+
+// ==========================================
+// 属性面板
+// ==========================================
+function initializePropertiesPanel() {
+  const toggleBtn = document.getElementById('properties-toggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', togglePropertiesPanel);
+  }
+}
+
+function togglePropertiesPanel() {
+  const panel = document.getElementById('properties-panel');
+  const workbench = document.querySelector('.workbench');
+  uiState.propertiesPanelCollapsed = !uiState.propertiesPanelCollapsed;
+  panel.classList.toggle('visible', !uiState.propertiesPanelCollapsed);
+  if (workbench) {
+    workbench.classList.toggle('properties-visible', !uiState.propertiesPanelCollapsed);
+  }
+  // 属性面板收起/展开后重新计算地图尺寸
+  setTimeout(() => {
+    if (map) map.invalidateSize();
+  }, 300);
+}
+
+function updatePropertiesPanel() {
+  const routeSection = document.getElementById('prop-selected-route');
+  const pointSection = document.getElementById('prop-selected-point');
+  const infoSection = document.getElementById('prop-selection-info');
+
+  // 显示选中航线的属性
+  if (selectedRouteId) {
+    const route = routes.find(r => r.id === selectedRouteId);
+    if (route) {
+      document.getElementById('prop-route-name').textContent = route.name;
+      document.getElementById('prop-route-points').textContent = route.points.length;
+      // 计算航线长度
+      let totalLength = 0;
+      for (let i = 0; i < route.points.length - 1; i++) {
+        const p1 = L.latLng(route.points[i].lat, route.points[i].lon);
+        const p2 = L.latLng(route.points[i + 1].lat, route.points[i + 1].lon);
+        totalLength += p1.distanceTo(p2);
+      }
+      document.getElementById('prop-route-length').textContent = totalLength > 1000
+        ? `${(totalLength / 1000).toFixed(2)} km`
+        : `${totalLength.toFixed(0)} m`;
+      document.getElementById('prop-route-status').textContent = route.editable ? '可编辑' : '锁定';
+      routeSection.style.display = 'block';
+    }
+  } else {
+    routeSection.style.display = 'none';
+  }
+
+  // 显示选中点的属性
+  if (selectedPoint) {
+    const route = routes.find(r => r.id === selectedPoint.routeId);
+    if (route && route.points[selectedPoint.pointIdx]) {
+      const point = route.points[selectedPoint.pointIdx];
+      document.getElementById('prop-point-index').textContent = selectedPoint.pointIdx + 1;
+      document.getElementById('prop-point-lat').textContent = point.lat.toFixed(6);
+      document.getElementById('prop-point-lon').textContent = point.lon.toFixed(6);
+      pointSection.style.display = 'block';
+    }
+  } else {
+    pointSection.style.display = 'none';
+  }
+
+  // 显示提示信息
+  if (!selectedRouteId && !selectedPoint) {
+    infoSection.style.display = 'block';
+  } else {
+    infoSection.style.display = 'none';
+  }
+}
+
+// ==========================================
+// 命令面板 (Ctrl+Shift+P)
+// ==========================================
+const commands = [
+  { id: 'import', label: '导入文件', shortcut: 'Ctrl+O', action: () => document.getElementById('file-input').click() },
+  { id: 'toggleEdit', label: '切换编辑模式', shortcut: 'Ctrl+E', action: () => document.getElementById('toggle-edit').click() },
+  { id: 'toggleMeasure', label: '切换测距工具', shortcut: 'Ctrl+M', action: () => document.getElementById('toggle-measure').click() },
+  { id: 'export', label: '导出选中航线', shortcut: 'Ctrl+S', action: () => document.getElementById('export-btn').click() },
+  { id: 'resetView', label: '重置视图', shortcut: 'Ctrl+0', action: resetMapView },
+  { id: 'panelFiles', label: '显示文件面板', shortcut: 'Alt+1', action: () => switchToPanel('files') },
+  { id: 'panelEdit', label: '显示编辑面板', shortcut: 'Alt+2', action: () => switchToPanel('edit') },
+  { id: 'panelMeasure', label: '显示测距面板', shortcut: 'Alt+3', action: () => switchToPanel('measure') },
+  { id: 'panelExport', label: '显示导出面板', shortcut: 'Alt+4', action: () => switchToPanel('export') },
+  { id: 'panelSettings', label: '显示设置面板', shortcut: 'Alt+5', action: () => switchToPanel('settings') },
+  { id: 'toggleProperties', label: '切换属性面板', shortcut: 'Ctrl+Alt+P', action: togglePropertiesPanel },
+  { id: 'toggleSidebar', label: '切换侧边栏', shortcut: 'Ctrl+B', action: toggleSidebar },
+];
+
+function initializeCommandPalette() {
+  const overlay = document.getElementById('command-palette-overlay');
+  const input = document.getElementById('command-input');
+  const list = document.getElementById('command-list');
+  const cmdBtn = document.getElementById('cmd-palette-btn');
+
+  // 打开命令面板
+  function openCommandPalette() {
+    overlay.classList.add('active');
+    input.value = '';
+    input.focus();
+    renderCommandList('');
+    list.selectedIndex = 0;
+  }
+
+  // 关闭命令面板
+  function closeCommandPalette() {
+    overlay.classList.remove('active');
+  }
+
+  // 渲染命令列表
+  function renderCommandList(filter) {
+    const filtered = commands.filter(cmd =>
+      cmd.label.toLowerCase().includes(filter.toLowerCase())
+    );
+    list.innerHTML = '';
+    filtered.forEach((cmd, idx) => {
+      const item = document.createElement('div');
+      item.className = 'command-item';
+      item.dataset.index = idx;
+      item.dataset.id = cmd.id;
+
+      const label = document.createElement('span');
+      label.className = 'command-item-label';
+      label.textContent = cmd.label;
+
+      const shortcut = document.createElement('span');
+      shortcut.className = 'command-item-shortcut';
+      shortcut.textContent = cmd.shortcut;
+
+      item.appendChild(label);
+      item.appendChild(shortcut);
+      list.appendChild(item);
+    });
+
+    // 点击命令执行
+    list.querySelectorAll('.command-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const idx = parseInt(item.dataset.index);
+        const cmd = filtered[idx];
+        if (cmd) {
+          cmd.action();
+          closeCommandPalette();
+        }
+      });
+    });
+  }
+
+  // 打开按钮
+  if (cmdBtn) {
+    cmdBtn.addEventListener('click', openCommandPalette);
+  }
+
+  // 暴露到全局，供菜单栏调用
+  window.openCommandPalette = openCommandPalette;
+  window.closeCommandPalette = closeCommandPalette;
+
+  // 输入过滤
+  input.addEventListener('input', (e) => {
+    renderCommandList(e.target.value);
+  });
+
+  // 键盘导航
+  input.addEventListener('keydown', (e) => {
+    const items = list.querySelectorAll('.command-item');
+    const selected = list.querySelector('.command-item.selected');
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (selected) selected.classList.remove('selected');
+      const idx = Array.from(items).indexOf(selected);
+      if (items[idx + 1]) items[idx + 1].classList.add('selected');
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (selected) selected.classList.remove('selected');
+      const idx = Array.from(items).indexOf(selected);
+      if (items[idx - 1]) items[idx - 1].classList.add('selected');
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selected) {
+        const cmd = commands.find(c => c.id === selected.dataset.id);
+        if (cmd) {
+          cmd.action();
+          closeCommandPalette();
         }
       }
-    });
-    refreshRoutesList();
+    } else if (e.key === 'Escape') {
+      closeCommandPalette();
+    }
   });
 
-  // 键盘快捷键: Alt + D 切换抽屉
-  document.addEventListener('keydown', (e) => {
-    if (e.altKey && e.key === 'd') {
+  // 点击遮罩关闭
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeCommandPalette();
+  });
+
+  // 暴露到全局
+  window.openCommandPalette = openCommandPalette;
+  window.closeCommandPalette = closeCommandPalette;
+}
+
+// ==========================================
+// 面板宽度拖拽调整
+// ==========================================
+function initializeResizeHandles() {
+  // Side Bar 拖拽
+  const sideBarResize = document.getElementById('side-bar-resize');
+  if (sideBarResize) {
+    let startX, startWidth;
+
+    sideBarResize.addEventListener('mousedown', (e) => {
       e.preventDefault();
-      toggleDrawer();
+      startX = e.clientX;
+      startWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--side-bar-width')) || 280;
+      document.body.style.cursor = 'col-resize';
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+
+    function onMouseMove(e) {
+      const diff = e.clientX - startX;
+      const newWidth = Math.min(Math.max(startWidth + diff, 200), 500);
+      // 使用 CSS 变量更新侧边栏宽度
+      document.documentElement.style.setProperty('--side-bar-width', newWidth + 'px');
+    }
+
+    function onMouseUp() {
+      document.body.style.cursor = '';
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    }
+  }
+
+  // Properties Panel 拖拽
+  const propResize = document.getElementById('properties-resize');
+  if (propResize) {
+    let startX, startWidth;
+
+    propResize.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      startX = e.clientX;
+      startWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--properties-panel-width')) || 260;
+      document.body.style.cursor = 'col-resize';
+      document.addEventListener('mousemove', onPropMouseMove);
+      document.addEventListener('mouseup', onPropMouseUp);
+    });
+
+    function onPropMouseMove(e) {
+      const diff = startX - e.clientX;
+      const newWidth = Math.min(Math.max(startWidth + diff, 200), 400);
+      // 使用 CSS 变量更新属性面板宽度
+      document.documentElement.style.setProperty('--properties-panel-width', newWidth + 'px');
+    }
+
+    function onPropMouseUp() {
+      document.body.style.cursor = '';
+      document.removeEventListener('mousemove', onPropMouseMove);
+      document.removeEventListener('mouseup', onPropMouseUp);
+    }
+  }
+}
+
+// ==========================================
+// 键盘快捷键
+// ==========================================
+function initializeKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    // 命令面板: Ctrl+Shift+P
+    if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+      e.preventDefault();
+      window.openCommandPalette?.();
+      return;
+    }
+
+    // 面板切换: Alt+1-5
+    if (e.altKey && e.key >= '1' && e.key <= '5') {
+      const panels = ['files', 'edit', 'measure', 'export', 'settings'];
+      switchToPanel(panels[parseInt(e.key) - 1]);
+      return;
+    }
+
+    // 侧边栏折叠: Ctrl+B
+    if (e.ctrlKey && e.key === 'b') {
+      e.preventDefault();
+      toggleSidebar();
+      return;
+    }
+
+    // 属性面板: Ctrl+Alt+P
+    if (e.ctrlKey && e.altKey && e.key === 'p') {
+      e.preventDefault();
+      togglePropertiesPanel();
+      return;
+    }
+
+    // 编辑模式: Ctrl+E
+    if (e.ctrlKey && e.key === 'e') {
+      e.preventDefault();
+      document.getElementById('toggle-edit')?.click();
+      return;
+    }
+
+    // 测距工具: Ctrl+M
+    if (e.ctrlKey && e.key === 'm') {
+      e.preventDefault();
+      document.getElementById('toggle-measure')?.click();
+      return;
+    }
+
+    // 重置视图: Ctrl+0
+    if (e.ctrlKey && e.key === '0') {
+      e.preventDefault();
+      resetMapView();
+      return;
+    }
+
+    // ESC键：取消操作
+    if (e.key === 'Escape') {
+      if (pendingNewRoute) {
+        cancelNewRouteDrawing();
+      } else if (window.closeCommandPalette) {
+        window.closeCommandPalette();
+      }
+      return;
+    }
+
+    // Enter键：完成操作
+    if (e.key === 'Enter' && pendingNewRoute) {
+      finishNewRouteDrawing();
+      return;
     }
   });
 }
 
-function toggleDrawer() {
-  const drawer = document.getElementById('route-drawer');
-  if (drawer) {
-    drawer.classList.toggle('collapsed');
-    uiState.drawerExpanded = !drawer.classList.contains('collapsed');
+// ==========================================
+// 状态栏更新
+// ==========================================
+function updateStatusBar() {
+  const routeCount = routes.length;
+  const pointCount = routes.reduce((sum, r) => sum + r.points.length, 0);
+
+  const routeCountEl = document.getElementById('status-route-count');
+  const pointCountEl = document.getElementById('status-point-count');
+  const selectionEl = document.getElementById('status-selection');
+
+  if (routeCountEl) routeCountEl.textContent = routeCount + ' 航线';
+  if (pointCountEl) pointCountEl.textContent = pointCount + ' 点';
+
+  let selectionText = '未选中';
+  if (selectedRouteId && selectedPoint) {
+    selectionText = '航线 ' + selectedRouteId + ' - 点 ' + (selectedPoint.pointIdx + 1);
+  } else if (selectedRouteId) {
+    selectionText = '航线 ' + selectedRouteId;
   }
+  if (selectionEl) selectionText !== '未选中' ? selectionEl.textContent = selectionText : selectionEl.textContent = selectionText;
 }
 
+// ==========================================
+// 菜单栏功能
+// ==========================================
+function initializeMenuBar() {
+  document.querySelectorAll('.menu-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      const menu = e.target.dataset.menu || e.target.closest('.menu-item')?.dataset.menu;
+      switch (menu) {
+        case 'file':
+          // 文件菜单 - 打开导入对话框
+          document.getElementById('file-input')?.click();
+          break;
+        case 'edit':
+          // 编辑菜单 - 切换编辑模式
+          document.getElementById('toggle-edit')?.click();
+          break;
+        case 'view':
+          // 视图菜单 - 切换属性面板
+          togglePropertiesPanel();
+          break;
+        case 'tools':
+          // 工具菜单 - 切换测距工具
+          const measureBtn = document.getElementById('toggle-measure');
+          if (measureBtn) {
+            measureBtn.click();
+          } else {
+            toggleMeasureMode();
+          }
+          break;
+        case 'help':
+          // 帮助菜单 - 打开命令面板查看快捷键
+          window.openCommandPalette?.();
+          break;
+      }
+    });
+  });
+}
+
+// ==========================================
+// UI 初始化
+// ==========================================
+function initializeUI() {
+  initializeMenuBar();
+  initializePanelSwitching();
+  initializePropertiesPanel();
+  initializeCommandPalette();
+  initializeResizeHandles();
+  initializeKeyboardShortcuts();
+
+  // 紧凑模式
+  const compactModeToggle = document.getElementById('setting-compact-mode');
+  if (compactModeToggle) {
+    compactModeToggle.addEventListener('change', (e) => {
+      const app = document.getElementById('app');
+      const menuBar = document.querySelector('.menu-bar');
+      const activityBar = document.querySelector('.activity-bar');
+
+      if (e.target.checked) {
+        app.classList.add('compact-mode');
+        // 添加悬停显示菜单栏和图标栏
+        menuBar?.classList.add('visible');
+        activityBar?.classList.add('visible');
+        // 延迟后隐藏
+        setTimeout(() => {
+          if (!menuBar.matches(':hover')) menuBar?.classList.remove('visible');
+          if (!activityBar.matches(':hover')) activityBar?.classList.remove('visible');
+        }, 2000);
+      } else {
+        app.classList.remove('compact-mode');
+        menuBar?.classList.remove('visible');
+        activityBar?.classList.remove('visible');
+      }
+    });
+  }
+
+  // 默认显示文件面板
+  switchToPanel('files');
+}
+
+// ==========================================
+// 航线可见性筛选
+// ==========================================
 function isRouteVisible(route) {
   if (!uiState.routeSearchQuery) return true;
   return route.name.toLowerCase().includes(uiState.routeSearchQuery);
@@ -177,20 +546,21 @@ function filterRoutes() {
   if (countEl) countEl.textContent = `(${visibleCount})`;
 }
 
-// ==========================================
-// UI 初始化
-// ==========================================
-function initializeUI() {
-  initializeAccordions();
-  initializeDrawer();
-}
-
 const map = L.map('map', {
   center: [30, 105],
   zoom: 4,
   worldCopyJump: true,
   preferCanvas: true,
 });
+
+// 保存初始地图位置
+const INITIAL_MAP_CENTER = [30, 105];
+const INITIAL_MAP_ZOOM = 4;
+
+// 重置到初始位置
+function resetMapView() {
+  map.setView(INITIAL_MAP_CENTER, INITIAL_MAP_ZOOM);
+}
 
 const mapSelect = document.querySelector('#map-select');
 
@@ -338,7 +708,7 @@ const fitBoundsBtn = document.querySelector('#fit-bounds');
 const exportBtn = document.querySelector('#export-btn');
 const exportFormatSelect = document.querySelector('#export-format');
 const routesList = document.querySelector('#routes-list');
-const statusEl = document.querySelector('#status');
+const statusEl = document.querySelector('#status-selection');
 const smoothRadiusInput = document.querySelector('#smooth-radius');
 const smoothRadiusUnitEl = document.querySelector('#smooth-radius-unit');
 const smoothRadiusKmEl = document.querySelector('#smooth-radius-km');
@@ -364,9 +734,9 @@ const segmentSearchRadiusValueEl = document.querySelector(
 const segmentStatusEl = document.querySelector('#segment-status');
 
 fileInput.addEventListener('change', handleFiles);
-toggleEditBtn.addEventListener('click', toggleEditMode);
-addNodeBtn.addEventListener('click', toggleAddMode);
-deleteNodeBtn.addEventListener('click', deleteSelectedNode);
+toggleEditBtn?.addEventListener('click', toggleEditMode);
+addNodeBtn?.addEventListener('click', toggleAddMode);
+deleteNodeBtn?.addEventListener('click', deleteSelectedNode);
 if (newRouteBtn) {
   newRouteBtn.addEventListener('click', () => {
     if (pendingNewRoute) {
@@ -376,12 +746,15 @@ if (newRouteBtn) {
     }
   });
 }
-fitBoundsBtn.addEventListener('click', fitAllBounds);
-exportBtn.addEventListener('click', exportData);
+fitBoundsBtn?.addEventListener('click', resetMapView);
+exportBtn?.addEventListener('click', exportData);
 map.on('click', onMapClick);
 map.on('mousemove', onMapMouseMove);
 map.on('dblclick', onMapDoubleClick);
 map.on('zoomend', () => {
+  // 更新状态栏缩放等级
+  const zoomEl = document.getElementById('status-zoom');
+  if (zoomEl) zoomEl.textContent = `Zoom: ${map.getZoom()}`;
   updateAllRoutesDisplayGeometry();
   if (measure.active) renderMeasure(); // zoom 变化会影响吸附与显示
 });
@@ -1177,16 +1550,29 @@ function refreshRoutesList() {
     const selectBtn = document.createElement('button');
     selectBtn.className = 'route-item-btn';
     selectBtn.textContent = '选择';
-    selectBtn.addEventListener('click', () => selectRoute(route.id));
+    selectBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectRoute(route.id);
+    });
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'route-item-btn delete';
     deleteBtn.textContent = '删除';
-    deleteBtn.addEventListener('click', () => confirmDeleteRoute(route.id));
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      confirmDeleteRoute(route.id);
+    });
 
     actions.append(selectBtn, deleteBtn);
 
     div.append(checkbox, info, actions);
+
+    // 点击整行选中航线（但排除复选框和按钮区域）
+    div.addEventListener('click', (e) => {
+      if (e.target === checkbox || e.target.tagName === 'BUTTON') return;
+      selectRoute(route.id);
+    });
+
     routesList.appendChild(div);
   });
 }
@@ -1271,6 +1657,11 @@ function selectRoute(routeId) {
       `选中航线: ${route?.name ?? '无'}${route?.editable ? '（可编辑）' : '（锁定）'}`
     );
   }
+
+  // 更新属性面板
+  updatePropertiesPanel();
+  // 更新状态栏
+  updateStatusBar();
 }
 
 function selectMarker(routeId, idx) {
@@ -1282,6 +1673,11 @@ function selectMarker(routeId, idx) {
     })
   );
   setStatus(`选中节点: ${idx + 1}`);
+
+  // 更新属性面板
+  updatePropertiesPanel();
+  // 更新状态栏
+  updateStatusBar();
 }
 
 function getRoute(id) {
@@ -2254,7 +2650,7 @@ function toggleMeasureMode() {
     clearMeasure({ exit: true });
     return;
   }
-  // 开启测距：与“添加节点”互斥
+  // 开启测距：与"添加节点"互斥
   pendingAdd = false;
   measure.active = true;
   measure.points = [];
@@ -2324,6 +2720,12 @@ function onDocumentKeyDown(e) {
 }
 
 function onMapMouseMove(e) {
+  // 更新状态栏坐标显示
+  const coordsEl = document.getElementById('status-coords');
+  if (coordsEl) {
+    coordsEl.textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+  }
+
   if (segmentExport.active) {
     updateSegmentHover(e.latlng);
     return;

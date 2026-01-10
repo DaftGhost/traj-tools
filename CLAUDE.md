@@ -259,3 +259,197 @@ Modify the smoothing logic around point drag operations in [main.js](main.js) - 
 
 ### Adding Export Format
 Create new export function similar to `exportCsv()` in [main.js]
+
+## Git Management Best Practices
+
+### Commit Message Convention
+
+Follow semantic commit message prefixes:
+- `feat:` - New features (e.g., "feat: 添加手动绘制航线功能")
+- `fix:` - Bug fixes (e.g., "fix: 修复航线列表抽屉默认状态")
+- `chore:` - Maintenance tasks (e.g., "chore: 添加代码质量工具配置")
+- `refactor:` - Code restructuring without behavior change
+- `docs:` - Documentation updates
+- `perf:` - Performance improvements
+
+Example commit messages from recent history:
+```
+eeabec3 feat: 导出时生成正序和逆序两个文件，文件名包含起点和终点方位
+85d74f7 feat: 支持中文列名和度分格式的坐标解析
+1916b3d feat: 添加手动绘制航线功能及单节点航线优化
+```
+
+### Co-Authorship with Claude Code
+
+When Claude Code contributes significant changes, include co-authorship:
+```
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+```
+
+This is automatically handled by the [`.claude/settings.json`](.claude/settings.json) configuration (`includeCoAuthoredBy: true`).
+
+### Version Tracking
+
+The application uses manual version tracking in HTML:
+- Format: `vYYYYMMDD-N` (e.g., `v20250108-3`)
+- Update in two places when making releases:
+  1. `<title>` tag in [index.html](index.html:6)
+  2. CSS cache busting parameter in [index.html](index.html:11)
+  3. Version display in header [index.html](index.html:17)
+
+### Sensitive Configuration
+
+Never commit files with API keys or sensitive data:
+- `config.js` - Contains Tianditu API keys (listed in [`.gitignore`](.gitignore))
+- Use [`config.example.js`](config.example.js) as template for new developers
+- Document required environment variables in README
+
+### Branch Workflow
+
+Recommended Git workflow:
+1. Create feature branches from `master`
+2. Use descriptive branch names: `feat/add-heatmap`, `fix/export-bug`
+3. Ensure all quality checks pass before merging (see [Code Quality Workflow](#code-quality-workflow))
+4. Use pull requests for code review when working in teams
+
+## Skills and Automation Tools
+
+### Available Skills
+
+The project integrates Claude Code skills for enhanced productivity:
+
+**UI/UX Design (`ui-ux-pro-max`):**
+- 50 design styles (glassmorphism, minimalism, brutalism, etc.)
+- 21 color palettes
+- 50 font pairings
+- 20 chart types
+- 8 tech stacks (React, Next.js, Vue, Svelte, SwiftUI, React Native, Flutter, Tailwind)
+
+Located in [`.claude/skills/ui-ux-pro-max/`](.claude/skills/ui-ux-pro-max/)
+
+Invoke via: `/ui-ux-pro-max` or use when planning UI improvements
+
+### Slash Commands
+
+Use these commands for code quality and development tasks:
+
+- **`/lint`** - Run ESLint and fix code style issues automatically
+- **`/format`** - Format code with Prettier according to project standards
+- **`/test`** - Run test suite (when tests are implemented)
+- **`/refactor`** - Get assistance with code refactoring
+- **`/debug`** - Debug errors and issues with guided assistance
+- **`/npm-scripts`** - Manage and run NPM scripts efficiently
+
+Command definitions located in [`.claude/commands/`](.claude/commands/)
+
+### When to Use Skills
+
+1. **UI Improvements**: Use `ui-ux-pro-max` skill when:
+   - Redesigning components or layouts
+   - Adding new visual features
+   - Improving accessibility and responsiveness
+   - Selecting color schemes or typography
+
+2. **Code Quality**: Use `/lint` and `/format` commands:
+   - Before committing changes
+   - After editing JavaScript/CSS files
+   - When IDE shows formatting inconsistencies
+
+3. **Development Tasks**: Use appropriate commands based on task type
+   - Refactoring: `/refactor` for code restructuring guidance
+   - Bug fixing: `/debug` for systematic debugging
+
+## Maintainability and Configurability
+
+### Code Quality Workflow
+
+**Before Committing:**
+```bash
+# 1. Check code style
+npm run lint
+
+# 2. Fix auto-fixable issues
+npm run lint:fix
+
+# 3. Format code
+npm run format
+
+# 4. Verify formatting
+npm run format:check
+```
+
+**Automated Hooks:**
+The [`.claude/settings.json`](.claude/settings.json) configures automated quality checks:
+- **Post-write/edit**: Auto-format JS/TS files with Prettier
+- **Console.log detection**: Warns if console.log statements in code
+- **Wildcard import detection**: Prevents anti-pattern imports
+- **Test execution**: Runs related tests after file changes (when tests exist)
+- **Stop hooks**: Lint changed files and analyze bundle size before session end
+
+### Configuration Management
+
+**Environment Configuration:**
+- [`config.example.js`](config.example.js) - Template with documentation
+- `config.js` - Actual configuration (gitignored)
+- Contains: Tianditu API keys, default map layer settings
+
+To set up your environment:
+1. Copy `config.example.js` to `config.js`
+2. Apply for free API key at http://lbs.tianditu.gov.cn/
+3. Replace `YOUR_TIANDITU_KEY_HERE` with your actual key
+
+**Code Quality Configuration:**
+- [`.eslintrc.json`](.eslintrc.json) - ESLint rules (browser ES2021, single quotes, 2-space indent)
+- [`.prettierrc`](.prettierrc) - Prettier formatting (single quote, 80 char width, 2-space tabs)
+- [`.eslintignore`](.eslintignore) - Files to exclude from linting
+
+### Adding New Map Layers
+
+To add new base map options:
+
+1. Add tile layer definition in [main.js](main.js:203-270) in `baseLayers` object
+2. Add `<option>` element to `<select id="map-select">` in [index.html](index.html:38-54)
+3. Match option value to object key
+4. If API key required, add to [`config.example.js`](config.example.js)
+
+Example:
+```javascript
+// In main.js
+const baseLayers = {
+  customLayer: L.tileLayer('https://example.com/{z}/{x}/{y}.png', {
+    attribution: '© Custom Provider',
+    maxZoom: 18
+  }),
+  // ... other layers
+};
+```
+
+```html
+<!-- In index.html -->
+<option value="customLayer">Custom Layer</option>
+```
+
+### Extending Functionality
+
+**Adding Export Formats:**
+Create new export function similar to `exportCsv()` and `exportGeoJson()` in [main.js](main.js)
+
+**Adjusting Simplification:**
+Modify `SIMPLIFY_CONFIG.tolerancePxForZoom()` function in [main.js](main.js)
+
+**Changing Smoothing Algorithm:**
+Update smoothing logic in [main.js](main.js) - search for "smooth" or `SMOOTH_CONFIG`
+
+### Versioning Strategy
+
+**Manual Versioning:**
+- Update version in [index.html](index.html:6) when releasing features
+- Format: `vYYYYMMDD-N` where N is the revision count for that day
+- Update CSS cache busting parameter to force browser refresh
+
+**Semantic Versioning Considerations:**
+- Major version (X.0.0): Breaking changes or major rewrites
+- Minor version (0.X.0): New features, backward compatible
+- Patch version (0.0.X): Bug fixes, minor improvements
+
+Current manual versioning works well for single-page application without formal releases.
