@@ -3,13 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>航线编辑器 v2.0</title>
+    <title>航线编辑器 v2.1</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     />
-    <link rel="stylesheet" href="style.css?v=v2.0" />
+    <link rel="stylesheet" href="style.css?v=v2.1" />
   </head>
 
   <body>
@@ -19,10 +19,10 @@
         <nav class="menu-bar-nav">
           <button class="menu-item" data-menu="file">文件(F)</button>
           <button class="menu-item" data-menu="edit">编辑(E)</button>
-          <button class="menu-item" data-menu="view">视图(V)</button>
+          <button class="menu-item" data-menu="view">航线详情(V)</button>
           <button class="menu-item" data-menu="help">帮助(H)</button>
         </nav>
-        <div class="menu-bar-title">航线编辑器 <span class="version">v2.0</span></div>
+        <div class="menu-bar-title">航线编辑器 <span class="version">v2.1</span></div>
         <div class="menu-bar-actions">
           <button class="icon-btn" id="cmd-palette-btn" title="命令面板 (Ctrl+Shift+P)">
             <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
@@ -43,6 +43,9 @@
             </button>
             <button class="activity-item" data-panel="measure" title="测距工具 (Ctrl+M)">
               <svg viewBox="0 0 24 24"><path fill="currentColor" d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H3V8h2v4h2V8h2v4h2V8h2v4h2V8h2v4h2V8h2v8z"/></svg>
+            </button>
+            <button class="activity-item" data-panel="heatmap" title="热力图 (Ctrl+H)">
+              <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/><circle cx="8" cy="10" r="2" fill="currentColor"/><circle cx="12" cy="14" r="3" fill="currentColor"/><circle cx="16" cy="8" r="2" fill="currentColor"/></svg>
             </button>
             <button class="activity-item" data-panel="export" title="导出 (Ctrl+X)">
               <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/></svg>
@@ -102,6 +105,20 @@
                   <button id="add-node" class="btn">添加节点</button>
                   <button id="delete-node" class="btn">删除节点</button>
                 </div>
+                <div class="add-node-position-controls">
+                  <label class="radio-label">
+                    <input type="radio" name="add-node-position" value="start" />
+                    <span>开头</span>
+                  </label>
+                  <label class="radio-label">
+                    <input type="radio" name="add-node-position" value="end" checked />
+                    <span>末尾</span>
+                  </label>
+                  <label class="radio-label">
+                    <input type="radio" name="add-node-position" value="between" />
+                    <span>两点之间</span>
+                  </label>
+                </div>
               </section>
 
               <section class="panel-section">
@@ -156,6 +173,56 @@
               </section>
             </div>
 
+            <div class="panel-view" data-panel="heatmap">
+              <section class="panel-section">
+                <h3>热力图设置</h3>
+                <p class="hint">为选中航线显示热力分布</p>
+              </section>
+
+              <section class="panel-section">
+                <label class="checkbox-row">
+                  <input id="heatmap-enabled" type="checkbox" />
+                  <span>启用热力图</span>
+                </label>
+              </section>
+
+              <section class="panel-section">
+                <div class="heatmap-control">
+                  <label>半径: <span id="heatmap-radius-value">25</span>px</label>
+                  <input id="heatmap-radius" type="range" min="10" max="100" value="25" />
+                </div>
+                <div class="heatmap-control">
+                  <label>模糊度: <span id="heatmap-blur-value">15</span>px</label>
+                  <input id="heatmap-blur" type="range" min="5" max="50" value="15" />
+                </div>
+                <div class="heatmap-control">
+                  <label>最小透明度: <span id="heatmap-opacity-value">0.1</span></label>
+                  <input id="heatmap-opacity" type="range" min="1" max="50" value="10" />
+                </div>
+              </section>
+
+              <section class="panel-section">
+                <label>渐变色</label>
+                <select id="heatmap-gradient">
+                  <option value="default">默认 (蓝-绿-红)</option>
+                  <option value="fire">火焰 (黄-橙-红)</option>
+                  <option value="cold">冷色 (蓝-青-白)</option>
+                  <option value="grayscale">灰度</option>
+                </select>
+              </section>
+
+              <section class="panel-section">
+                <label class="checkbox-label">
+                  <input id="heatmap-hide-route" type="checkbox" />
+                  <span>开启热力图时隐藏航线</span>
+                </label>
+              </section>
+
+              <section class="panel-section">
+                <div class="heatmap-preview" id="heatmap-preview"></div>
+              </section>
+            </div>
+
             <div class="panel-view" data-panel="export">
               <section class="panel-section">
                 <label>导出格式</label>
@@ -204,7 +271,7 @@
               <section class="panel-section">
                 <h3>关于</h3>
                 <div class="about-info">
-                  <p>航线编辑器 v2.0</p>
+                  <p>航线编辑器 v2.1</p>
                   <p class="hint">基于 Leaflet + PapaParse + FileSaver</p>
                 </div>
               </section>
@@ -294,9 +361,9 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-    <script src="config.js"></script>
-    <script type="module" src="main.js?v=v2.0"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
