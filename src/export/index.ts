@@ -28,8 +28,8 @@ interface GeoJSONLineString {
  */
 function createCsvData(points: Point[]): Record<string, string>[] {
   return points.map((p, i) => ({
-    纬度: p.lat.toFixed(6),
-    经度: p.lon.toFixed(6),
+    纬度: Number(p.lat).toFixed(6),
+    经度: Number(p.lon).toFixed(6),
     序号: String(i + 1)
   }));
 }
