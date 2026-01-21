@@ -95,7 +95,8 @@ export async function parseCsvFile(file: File): Promise<ParsedPoint[]> {
             console.log('[parseCsvFile] Row values:', lat, lon);
             
             if (!isNaN(lat) && !isNaN(lon)) {
-              points.push({ lat, lon, ...row });
+              // Spread row first, then override with parsed numeric lat/lon to ensure they're numbers
+              points.push({ ...row, lat, lon });
             }
           }
         }

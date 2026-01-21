@@ -506,8 +506,8 @@ export function exportRouteSegments(): void {
       rows.push({
         '航线名称': route.name,
         '序号': idx + 1,
-        '纬度': p.lat.toFixed(6),
-        '经度': p.lon.toFixed(6)
+        '纬度': Number(p.lat).toFixed(6),
+        '经度': Number(p.lon).toFixed(6)
       });
     });
   });
