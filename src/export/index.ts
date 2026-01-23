@@ -102,15 +102,22 @@ function exportForwardReverseCsv(points: Point[], baseName: string, prefix: stri
     return;
   }
 
+  // Calculate bearing directions
+  // direction: bearing from start→end (represents the direction of travel)
+  // reverseDirection: bearing from end→start (represents the opposite direction)
   const bearing = calculateBearing(points[0], points[points.length - 1]);
   const direction = bearingToDirection(bearing);
   const reverseBearing = calculateBearing(points[points.length - 1], points[0]);
   const reverseDirection = bearingToDirection(reverseBearing);
 
+  // Forward file: filename shows where route starts (reverseDirection) and ends (direction)
+  // Example: N_S means starts at North, ends at South
   const forwardCsv = createCsvData(points);
   const forwardName = prefix ? `${reverseDirection}_${direction}_${baseName}_${prefix}` : `${reverseDirection}_${direction}_${baseName}`;
   downloadCsv(forwardCsv, forwardName + '.csv');
 
+  // Reverse file: filename shows where reversed route starts and ends
+  // Example: S_N means starts at South (original end), ends at North (original start)
   const reversePoints = [...points].reverse();
   const reverseCsv = createCsvData(reversePoints);
   const reverseName = prefix ? `${direction}_${reverseDirection}_${baseName}_${prefix}` : `${direction}_${reverseDirection}_${baseName}`;
@@ -128,15 +135,22 @@ function exportForwardReverseGeoJSON(points: Point[], baseName: string, prefix: 
     return;
   }
 
+  // Calculate bearing directions
+  // direction: bearing from start→end (represents the direction of travel)
+  // reverseDirection: bearing from end→start (represents the opposite direction)
   const bearing = calculateBearing(points[0], points[points.length - 1]);
   const direction = bearingToDirection(bearing);
   const reverseBearing = calculateBearing(points[points.length - 1], points[0]);
   const reverseDirection = bearingToDirection(reverseBearing);
 
+  // Forward file: filename shows where route starts (reverseDirection) and ends (direction)
+  // Example: N_S means starts at North, ends at South
   const forwardGeoJSON = createGeoJSONData(points);
   const forwardName = prefix ? `${reverseDirection}_${direction}_${baseName}_${prefix}` : `${reverseDirection}_${direction}_${baseName}`;
   downloadGeoJSON(forwardGeoJSON, forwardName + '.geojson');
 
+  // Reverse file: filename shows where reversed route starts and ends
+  // Example: S_N means starts at South (original end), ends at North (original start)
   const reversePoints = [...points].reverse();
   const reverseGeoJSON = createGeoJSONData(reversePoints);
   const reverseName = prefix ? `${direction}_${reverseDirection}_${baseName}_${prefix}` : `${direction}_${reverseDirection}_${baseName}`;
