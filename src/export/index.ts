@@ -108,12 +108,12 @@ function exportForwardReverseCsv(points: Point[], baseName: string, prefix: stri
   const reverseDirection = bearingToDirection(reverseBearing);
 
   const forwardCsv = createCsvData(points);
-  const forwardName = prefix ? `${direction}_${reverseDirection}_${baseName}_${prefix}` : `${direction}_${reverseDirection}_${baseName}`;
+  const forwardName = prefix ? `${reverseDirection}_${direction}_${baseName}_${prefix}` : `${reverseDirection}_${direction}_${baseName}`;
   downloadCsv(forwardCsv, forwardName + '.csv');
 
   const reversePoints = [...points].reverse();
   const reverseCsv = createCsvData(reversePoints);
-  const reverseName = prefix ? `${reverseDirection}_${direction}_${baseName}_${prefix}` : `${reverseDirection}_${direction}_${baseName}`;
+  const reverseName = prefix ? `${direction}_${reverseDirection}_${baseName}_${prefix}` : `${direction}_${reverseDirection}_${baseName}`;
   downloadCsv(reverseCsv, reverseName + '.csv');
 }
 
@@ -134,12 +134,12 @@ function exportForwardReverseGeoJSON(points: Point[], baseName: string, prefix: 
   const reverseDirection = bearingToDirection(reverseBearing);
 
   const forwardGeoJSON = createGeoJSONData(points);
-  const forwardName = prefix ? `${direction}_${reverseDirection}_${baseName}_${prefix}` : `${direction}_${reverseDirection}_${baseName}`;
+  const forwardName = prefix ? `${reverseDirection}_${direction}_${baseName}_${prefix}` : `${reverseDirection}_${direction}_${baseName}`;
   downloadGeoJSON(forwardGeoJSON, forwardName + '.geojson');
 
   const reversePoints = [...points].reverse();
   const reverseGeoJSON = createGeoJSONData(reversePoints);
-  const reverseName = prefix ? `${reverseDirection}_${direction}_${baseName}_${prefix}` : `${reverseDirection}_${direction}_${baseName}`;
+  const reverseName = prefix ? `${direction}_${reverseDirection}_${baseName}_${prefix}` : `${direction}_${reverseDirection}_${baseName}`;
   downloadGeoJSON(reverseGeoJSON, reverseName + '.geojson');
 }
 
