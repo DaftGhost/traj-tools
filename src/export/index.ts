@@ -5,6 +5,7 @@
 import Papa from 'papaparse';
 import { store, Point } from '../state/store';
 import { calculateBearing, bearingToDirection } from '../utils/geo';
+import { swapLeftRight } from '../utils/helpers';
 
 // GeoJSON 类型定义
 interface GeoJSONFeatureCollection {
@@ -118,9 +119,12 @@ function exportForwardReverseCsv(points: Point[], baseName: string, prefix: stri
 
   // Reverse file: filename shows where reversed route starts and ends
   // Example: S_N means starts at South (original end), ends at North (original start)
+  // Also swap left/right in baseName and prefix for reversed routes
   const reversePoints = [...points].reverse();
   const reverseCsv = createCsvData(reversePoints);
-  const reverseName = prefix ? `${direction}_${reverseDirection}_${baseName}_${prefix}` : `${direction}_${reverseDirection}_${baseName}`;
+  const reverseBaseName = swapLeftRight(baseName);
+  const reversePrefix = swapLeftRight(prefix);
+  const reverseName = reversePrefix ? `${direction}_${reverseDirection}_${reverseBaseName}_${reversePrefix}` : `${direction}_${reverseDirection}_${reverseBaseName}`;
   downloadCsv(reverseCsv, reverseName + '.csv');
 }
 
@@ -151,9 +155,12 @@ function exportForwardReverseGeoJSON(points: Point[], baseName: string, prefix: 
 
   // Reverse file: filename shows where reversed route starts and ends
   // Example: S_N means starts at South (original end), ends at North (original start)
+  // Also swap left/right in baseName and prefix for reversed routes
   const reversePoints = [...points].reverse();
   const reverseGeoJSON = createGeoJSONData(reversePoints);
-  const reverseName = prefix ? `${direction}_${reverseDirection}_${baseName}_${prefix}` : `${direction}_${reverseDirection}_${baseName}`;
+  const reverseBaseName = swapLeftRight(baseName);
+  const reversePrefix = swapLeftRight(prefix);
+  const reverseName = reversePrefix ? `${direction}_${reverseDirection}_${reverseBaseName}_${reversePrefix}` : `${direction}_${reverseDirection}_${reverseBaseName}`;
   downloadGeoJSON(reverseGeoJSON, reverseName + '.geojson');
 }
 
