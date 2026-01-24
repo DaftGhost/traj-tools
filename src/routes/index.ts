@@ -7,9 +7,6 @@ import { updateRouteDisplayGeometry, setUIRefreshFunctions, refreshRoutesList, u
 import { formatFileName, getFileExtension } from '../utils/helpers';
 import { fitRoute } from '../map';
 import Papa from 'papaparse';
-import type * as Leaflet from 'leaflet';
-// 使用 Leaflet 全局变量
-declare const L: typeof Leaflet;
 
 // 导出 UI 刷新函数供其他模块使用
 export { setUIRefreshFunctions };
@@ -312,7 +309,7 @@ export function mergeRoutes(routeId1: string, routeId2: string): Route | null {
 
   // 移除热力图层
   if (route2.heatLayer) {
-    (route2.heatLayer as L.Layer).remove();
+    route2.heatLayer.remove();
     route2.heatLayer = null;
   }
 
