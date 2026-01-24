@@ -47,6 +47,18 @@ const commands: CommandItem[] = [
         }
       }
     }, category: '编辑' },
+  { id: 'edit.mergeRoutes', name: '合并航线', description: '将另一条航线合并到当前选中航线', action: () => {
+      const route = store.getSelectedRoute();
+      if (!route) {
+        alert('请先选择一条航线');
+        return;
+      }
+      if (store.routes.length < 2) {
+        alert('需要至少两条航线才能进行合并');
+        return;
+      }
+      document.getElementById('merge-routes')?.click();
+    }, category: '编辑' },
   { id: 'tools.toggleMeasure', name: '切换测距工具', description: '开启/关闭距离测量工具', action: () => import('../tools/measure').then(m => m.toggleMeasureMode()), category: '工具' },
   { id: 'tools.toggleSegment', name: '切换航段导出模式', description: '开启/关闭航段选择模式', action: () => import('../tools/segment').then(m => m.toggleSegmentExportMode()), category: '工具' },
   { id: 'tools.toggleHeatmap', name: '切换热力图', description: '开启/关闭航点热力图', action: () => {
