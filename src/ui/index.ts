@@ -210,6 +210,10 @@ function initializeEditControls(): void {
     });
   });
 
+  const mergeRoutesBtn = document.getElementById('merge-routes');
+  mergeRoutesBtn?.addEventListener('click', openMergeDialog);
+
+  initializeMergeDialog();
   initializeSmoothControls();
 }
 
@@ -377,6 +381,141 @@ export function deleteSelectedNode(): void {
   import('../routes/geometry').then(m => m.updateRouteDisplayGeometry(route));
   updateRouteList();
   updatePropertiesPanel();
+}
+
+/**
+ * 合并航线对话框状态
+ */
+let selectedMergeRouteId: string | null = null;
+
+/**
+ * 初始化合并对话框
+ */
+function initializeMergeDialog(): void {
+  const overlay = document.getElementById('merge-dialog-overlay');
+  const closeBtn = document.getElementById('merge-dialog-close');
+  const cancelBtn = document.getElementById('merge-dialog-cancel');
+  const confirmBtn = document.getElementById('merge-dialog-confirm');
+
+  overlay?.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      closeMergeDialog();
+    }
+  });
+
+  closeBtn?.addEventListener('click', closeMergeDialog);
+  cancelBtn?.addEventListener('click', closeMergeDialog);
+  confirmBtn?.addEventListener('click', confirmMerge);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay?.classList.contains('visible')) {
+      closeMergeDialog();
+    }
+  });
+}
+
+/**
+ * 打开合并对话框
+ */
+function openMergeDialog(): void {
+  const route = store.getSelectedRoute();
+  if (!route) {
+    alert('请先选择一条航线');
+    return;
+  }
+
+  if (store.routes.length < 2) {
+    alert('需要至少两条航线才能进行合并');
+    return;
+  }
+
+  selectedMergeRouteId = null;
+  renderMergeRouteList();
+
+  const overlay = document.getElementById('merge-dialog-overlay');
+  overlay?.classList.add('visible');
+}
+
+/**
+ * 关闭合并对话框
+ */
+function closeMergeDialog(): void {
+  const overlay = document.getElementById('merge-dialog-overlay');
+  overlay?.classList.remove('visible');
+  selectedMergeRouteId = null;
+}
+
+/**
+ * 渲染合并航线列表
+ */
+function renderMergeRouteList(): void {
+  const container = document.getElementById('merge-route-list');
+  if (!container) return;
+
+  const selectedRoute = store.getSelectedRoute();
+  const otherRoutes = store.routes.filter(r => r.id !== selectedRoute?.id);
+
+  container.innerHTML = '';
+
+  if (otherRoutes.length === 0) {
+    const emptyEl = document.createElement('div');
+    emptyEl.className = 'merge-route-empty';
+    emptyEl.textContent = '没有其他航线可合并';
+    container.appendChild(emptyEl);
+    return;
+  }
+
+  otherRoutes.forEach(route => {
+    const item = document.createElement('div');
+    item.className = 'merge-route-item';
+    item.dataset.id = route.id;
+
+    const colorSpan = document.createElement('span');
+    colorSpan.className = 'route-color';
+    colorSpan.style.backgroundColor = route.color;
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'route-name';
+    nameSpan.textContent = route.name;
+
+    const pointsSpan = document.createElement('span');
+    pointsSpan.className = 'route-points';
+    pointsSpan.textContent = route.points.length + ' 点';
+
+    item.appendChild(colorSpan);
+    item.appendChild(nameSpan);
+    item.appendChild(pointsSpan);
+
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.merge-route-item').forEach(el => el.classList.remove('selected'));
+      item.classList.add('selected');
+      selectedMergeRouteId = route.id;
+    });
+
+    container.appendChild(item);
+  });
+}
+
+/**
+ * 确认合并
+ */
+function confirmMerge(): void {
+  const route = store.getSelectedRoute();
+  if (!route || !selectedMergeRouteId) {
+    alert('请选择要合并的航线');
+    return;
+  }
+
+  import('../routes/index').then(m => {
+    const mergedRoute = m.mergeRoutes(route.id, selectedMergeRouteId!);
+    if (mergedRoute) {
+      closeMergeDialog();
+      updateRouteList();
+      updatePropertiesPanel();
+    } else {
+      alert('合并失败');
+    }
+  });
 }
 
 /**
