@@ -21,6 +21,9 @@ Thumbs.db
 .claude/cache/
 .claude/debug/
 
+# Worktrees
+.worktrees/
+
 # Environment variables (local development)
 .env
 .env.local
