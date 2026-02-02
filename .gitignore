@@ -37,3 +37,7 @@ yarn-error.log*
 
 # Project documentation (optional)
 需求.md
+
+# code agent
+.claude/
+CLAUDE.md
