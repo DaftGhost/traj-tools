@@ -1,5 +1,5 @@
 {
-  "step": 7,
+  "step": 9,
   "checkpoints": [
     "Created wrangler.toml",
     "Created src/worker.ts",
@@ -8,8 +8,10 @@
     "Updated .env.example",
     "Updated src/vite-env.d.ts",
     "Updated package.json with wrangler scripts",
-    "Updated tsconfig.json with workers types"
+    "Updated tsconfig.json with workers types",
+    "Added Cache API logic in src/worker.ts (cache-first, stale-on-error)",
+    "Improved cache headers (SWR, stale-if-error, X-Cache debug headers)"
   ],
   "last_updated": "2026-02-05T00:00:00.000Z",
-  "build_status": "pre-existing TS errors unchanged"
+  "build_status": "passed - worker deploy dry-run successful"
 }
