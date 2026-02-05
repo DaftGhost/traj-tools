@@ -17,7 +17,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
-    }
+    },
+    "types": ["@cloudflare/workers-types"]
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]

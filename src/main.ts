@@ -29,7 +29,9 @@ import './import';
 import './export';
 
 // 初始化
-initializeMap();
-initializeUI();
+(async () => {
+  await initializeMap();
+  initializeUI();
+})();
 
 console.log('航线编辑器 v2.1 (TypeScript版) 已加载');

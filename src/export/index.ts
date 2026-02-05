@@ -168,7 +168,7 @@ function exportForwardReverseGeoJSON(points: Point[], baseName: string, prefix: 
  * 获取导出格式
  */
 function getExportFormat(): 'csv' | 'geojson' {
-  const select = document.getElementById('export-format') as HTMLSelectElement;
+  const select = document.getElementById('export-format') as unknown as HTMLSelectElement;
   return (select?.value as 'csv' | 'geojson') || 'csv';
 }
 

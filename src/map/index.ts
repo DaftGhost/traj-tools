@@ -4,7 +4,7 @@
 
 import * as L from 'leaflet';
 import { store } from '../state/store';
-import { initializeBaseLayers, switchBaseLayer, baseLayers, getLastSelectedBaseLayer } from './layers';
+import { initializeBaseLayers, switchBaseLayer, baseLayers, getLastSelectedBaseLayer, tiandituAvailable } from './layers';
 import { refreshAllRouteDisplayGeometry } from '../routes/geometry';
 
 // 修复 Leaflet 图标问题
@@ -18,9 +18,9 @@ L.Icon.Default.mergeOptions({
 /**
  * 初始化地图
  */
-export function initializeMap(): void {
-  // 初始化底图
-  initializeBaseLayers();
+export async function initializeMap(): Promise<void> {
+  // 初始化底图（异步，等待健康检查完成）
+  await initializeBaseLayers();
 
   // 创建地图实例
   store.map = L.map('map', {
@@ -34,9 +34,12 @@ export function initializeMap(): void {
 
   // 添加上次选择的底图
   const lastLayerName = getLastSelectedBaseLayer();
-  const lastLayer = baseLayers[lastLayerName] || baseLayers.tdtSatellite || baseLayers.osm;
+  const lastLayer = baseLayers[lastLayerName];
   if (lastLayer) {
     lastLayer.addTo(store.map);
+  } else {
+    // 回退到 OSM
+    baseLayers.osm?.addTo(store.map);
   }
 
   // 绑定地图事件
@@ -119,4 +122,11 @@ export function fitRoute(routeId: string): void {
     route.points.map((p) => [p.lat, p.lon] as L.LatLngExpression)
   );
   store.map.fitBounds(bounds, { padding: [50, 50] });
+}
+
+/**
+ * 检查天地图是否可用
+ */
+export function isTiandituAvailable(): boolean {
+  return tiandituAvailable;
 }

@@ -169,7 +169,7 @@ async function handleFiles(e: Event): Promise<void> {
  * 初始化地图控件
  */
 function initializeMapControls(): void {
-  const mapSelect = document.getElementById('map-select') as HTMLSelectElement;
+  const mapSelect = document.getElementById('map-select') as unknown as HTMLSelectElement;
 
   // 设置上次选择的底图为初始值
   if (mapSelect) {
@@ -573,7 +573,7 @@ function initializeHeatmapControls(): void {
   const radiusSlider = document.getElementById('heatmap-radius') as HTMLInputElement;
   const blurSlider = document.getElementById('heatmap-blur') as HTMLInputElement;
   const opacitySlider = document.getElementById('heatmap-opacity') as HTMLInputElement;
-  const gradientSelect = document.getElementById('heatmap-gradient') as HTMLSelectElement;
+  const gradientSelect = document.getElementById('heatmap-gradient') as unknown as HTMLSelectElement;
 
   enabledCheckbox?.addEventListener('change', (e) => {
     const enabled = (e.target as HTMLInputElement).checked;

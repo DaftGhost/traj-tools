@@ -1,0 +1,15 @@
+{
+  "step": 7,
+  "checkpoints": [
+    "Created wrangler.toml",
+    "Created src/worker.ts",
+    "Updated src/map/layers.ts",
+    "Updated src/map/index.ts",
+    "Updated .env.example",
+    "Updated src/vite-env.d.ts",
+    "Updated package.json with wrangler scripts",
+    "Updated tsconfig.json with workers types"
+  ],
+  "last_updated": "2026-02-05T00:00:00.000Z",
+  "build_status": "pre-existing TS errors unchanged"
+}
