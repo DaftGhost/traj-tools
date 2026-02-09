@@ -6,6 +6,9 @@
 import * as L from 'leaflet';
 import { store, Route, HeatmapOptions } from '../state/store';
 import { HEATMAP_CONFIG } from '../config/constants';
+import { setStatus } from '../utils/uiStatus';
+import type { HeatLayerOptions } from '../types/heatLayer';
+import { safeSetLatLngs, safeSetOptions } from '../types/heatLayer';
 
 const gradients: Record<string, Record<number, string>> = {
   default: { 0.4: 'blue', 0.6: 'cyan', 0.7: 'lime', 0.8: 'yellow', 0.9: 'red' },
@@ -204,15 +207,13 @@ export function updateCurrentHeatOptions(options: Partial<HeatmapOptions>): void
     route.heatOptions = { ...getDefaultHeatOptions(), ...options };
   }
 
-  const layer = route.heatLayer as unknown as { setOptions(opts: unknown): void };
-  if (typeof layer.setOptions === 'function' && route.heatOptions) {
-    layer.setOptions({
-      radius: route.heatOptions.radius,
-      blur: route.heatOptions.blur,
-      minOpacity: route.heatOptions.minOpacity,
-      gradient: getGradient(route.heatOptions.gradient)
-    });
-  }
+  const heatOptions: HeatLayerOptions = {
+    radius: route.heatOptions.radius,
+    blur: route.heatOptions.blur,
+    minOpacity: route.heatOptions.minOpacity,
+    gradient: getGradient(route.heatOptions.gradient)
+  };
+  safeSetOptions(route.heatLayer, heatOptions);
 }
 
 /**
@@ -240,10 +241,7 @@ export async function refreshAllHeatLayers(): Promise<void> {
   for (const route of store.routes) {
     if (route.heatEnabled && route.heatLayer) {
       const heatData = getHeatData(route);
-      const layer = route.heatLayer as unknown as { setLatLngs(latlngs: [number, number][]): void };
-      if (typeof layer.setLatLngs === 'function') {
-        layer.setLatLngs(heatData);
-      }
+      safeSetLatLngs(route.heatLayer, heatData);
     }
   }
 }
@@ -280,15 +278,13 @@ export async function toggleHeatLayer(enabled: boolean): Promise<void> {
 export function updateHeatLayerOptions(): void {
   const route = store.getSelectedRoute();
   if (route && route.heatEnabled && route.heatLayer && route.heatOptions) {
-    const layer = route.heatLayer as unknown as { setOptions(opts: unknown): void };
-    if (typeof layer.setOptions === 'function') {
-      layer.setOptions({
-        radius: route.heatOptions.radius,
-        blur: route.heatOptions.blur,
-        minOpacity: route.heatOptions.minOpacity,
-        gradient: getGradient(route.heatOptions.gradient)
-      });
-    }
+    const heatOptions: HeatLayerOptions = {
+      radius: route.heatOptions.radius,
+      blur: route.heatOptions.blur,
+      minOpacity: route.heatOptions.minOpacity,
+      gradient: getGradient(route.heatOptions.gradient)
+    };
+    safeSetOptions(route.heatLayer, heatOptions);
   }
 }
 
@@ -335,9 +331,4 @@ export function isAnyHeatEnabled(): boolean {
   return store.routes.some(r => r.heatEnabled);
 }
 
-function setStatus(message: string): void {
-  const el = document.getElementById('status-selection');
-  if (el) {
-    el.textContent = message;
-  }
-}
+// REMOVED: setStatus function - now imported from utils/uiStatus

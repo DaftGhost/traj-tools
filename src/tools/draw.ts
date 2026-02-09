@@ -6,6 +6,7 @@ import * as L from 'leaflet';
 import { store, Point } from '../state/store';
 import { updateRouteDisplayGeometry } from '../routes/geometry';
 import { buildMarkerIcon } from '../utils/markerIcon';
+import { setStatus, updateStatusCoords } from '../utils/uiStatus';
 
 let drawingMode = false;
 let drawingRouteId: string | null = null;
@@ -217,16 +218,4 @@ function createDrawingMarkers(route: { id: string; points: Point[]; color: strin
   return markers;
 }
 
-function updateStatusCoords(lat: number, lon: number): void {
-  const el = document.getElementById('status-coords');
-  if (el) {
-    el.textContent = lat.toFixed(4) + ', ' + lon.toFixed(4);
-  }
-}
-
-function setStatus(message: string): void {
-  const el = document.getElementById('status-selection');
-  if (el) {
-    el.textContent = message;
-  }
-}
+// REMOVED: setStatus and updateStatusCoords functions - now imported from utils/uiStatus

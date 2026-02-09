@@ -2,10 +2,7 @@
  * 地理计算工具函数
  */
 
-export interface Point {
-  lat: number;
-  lon: number;
-}
+import type { Point } from '../state/store';
 
 /**
  * 计算两点之间的 Haversine 距离（米）

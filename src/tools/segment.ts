@@ -6,6 +6,9 @@
 import * as L from 'leaflet';
 import { store, Point } from '../state/store';
 import { haversineDistance } from '../utils/geo';
+import { snapToRoutes, pointToSegmentDistance } from '../utils/snap';
+import type { SnapRef } from '../types/refs';
+import { setStatus } from '../utils/uiStatus';
 
 let segmentExportMode = false;
 let startPoint: SegmentPoint | null = null;
@@ -18,14 +21,10 @@ let animationFrameId: number | null = null;
 interface SegmentPoint {
   lat: number;
   lon: number;
-  ref: SegmentRef | null;
+  ref: SnapRef | null;
 }
 
-interface SegmentRef {
-  routeId: string;
-  segIdx: number;
-  segFrac: number;
-}
+// REMOVED: SegmentRef interface - now uses SnapRef from types/refs.ts
 
 function bindSegmentEvents(): void {
   if (!store.map) return;
@@ -363,29 +362,7 @@ function findRoutesInPerpendicularRange(): void {
   updateSegmentStatus();
 }
 
-function pointToSegmentDistance(lat: number, lon: number, segStart: Point, segEnd: Point): number {
-  const dx = segEnd.lon - segStart.lon;
-  const dy = segEnd.lat - segStart.lat;
-
-  if (dx === 0 && dy === 0) {
-    return haversineDistance({ lat, lon }, segStart);
-  }
-
-  const t = ((lon - segStart.lon) * dx + (lat - segStart.lat) * dy) / (dx * dx + dy * dy);
-
-  if (t < 0) {
-    return haversineDistance({ lat, lon }, segStart);
-  } else if (t > 1) {
-    return haversineDistance({ lat, lon }, segEnd);
-  }
-
-  const nearest = {
-    lat: segStart.lat + t * dy,
-    lon: segStart.lon + t * dx
-  };
-
-  return haversineDistance({ lat, lon }, nearest);
-}
+// REMOVED: pointToSegmentDistance - now imported from utils/snap.ts
 
 function extractRouteSegment(route: { id: string; points: Point[] }, start: SegmentPoint, end: SegmentPoint): Point[] | null {
   if (!route || !route.points || route.points.length < 2) return null;
@@ -554,49 +531,4 @@ export function handleMapMouseOut(): void {
   renderSegmentExport();
 }
 
-interface SnapResult {
-  lat: number;
-  lon: number;
-  ref: SegmentRef | null;
-}
-
-function snapToRoutes(latlng: L.LatLng): SnapResult | null {
-  if (!store.map) return null;
-
-  const target: Point = { lat: latlng.lat, lon: latlng.lng };
-
-  let minDist = Infinity;
-  let nearestVertex: { point: Point; routeId: string; index: number } | null = null;
-
-  for (const route of store.routes.filter(r => r.visible)) {
-    for (let i = 0; i < route.points.length; i++) {
-      const p = route.points[i];
-      const dist = haversineDistance(target, p);
-      if (dist < minDist) {
-        minDist = dist;
-        nearestVertex = { point: p, routeId: route.id, index: i };
-      }
-    }
-  }
-
-  const mapZoom = store.map.getZoom();
-  const metersPerPx = 156543.0332 * Math.cos(latlng.lat * Math.PI / 180) / Math.pow(2, mapZoom);
-  const snapThresholdMeters = 12 * metersPerPx;
-
-  if (nearestVertex && minDist < snapThresholdMeters) {
-    return {
-      lat: nearestVertex.point.lat,
-      lon: nearestVertex.point.lon,
-      ref: { routeId: nearestVertex.routeId, segIdx: nearestVertex.index, segFrac: 0 }
-    };
-  }
-
-  return { lat: latlng.lat, lon: latlng.lng, ref: null };
-}
-
-function setStatus(message: string): void {
-  const el = document.getElementById('status-selection');
-  if (el) {
-    el.textContent = message;
-  }
-}
+// REMOVED: SnapResult, snapToRoutes, pointToSegmentDistance - now imported from utils/snap.ts
