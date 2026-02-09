@@ -162,10 +162,10 @@ describe('utils/snap', () => {
       const segStart: Point = { lat: 0, lon: 0 };
       const segEnd: Point = { lat: 1, lon: 1 };
 
-      // Point at (0.5, 0) - projects to (0.5, 0.5)
+      // Point at (0.5, 0) - projects to (0.25, 0.25)
       const distance = pointToSegmentDistance(0.5, 0, segStart, segEnd);
 
-      // Perpendicular distance from (0.5, 0) to (0.5, 0.5) is 0.5 lat degrees ~39km
+      // Perpendicular distance from (0.5, 0) to (0.25, 0.25) is ~0.354 degrees ~39.3km
       expect(distance).toBeGreaterThan(35000);
       expect(distance).toBeLessThan(45000);
     });

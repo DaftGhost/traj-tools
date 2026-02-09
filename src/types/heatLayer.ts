@@ -3,11 +3,18 @@
  * Provides type-safe access to leaflet.heat layer methods
  */
 
+import * as L from 'leaflet';
+
+/**
+ * Coordinate with optional intensity value for leaflet.heat
+ */
+type HeatLatLng = [number, number] | [number, number, number];
+
 /**
  * Extended heat layer interface with option setter
  */
 export interface HeatLayerEx extends L.Layer {
-  setLatLngs(latlngs: [number, number][]): this;
+  setLatLngs(latlngs: HeatLatLng[]): this;
   setOptions(opts: HeatLayerOptions): this;
 }
 
@@ -16,6 +23,17 @@ export interface HeatLayerOptions {
   blur: number;
   minOpacity: number;
   gradient: Record<number, string>;
+}
+
+/**
+ * Type guard to check if a layer is a heat layer with both setLatLngs and setOptions
+ */
+export function isHeatLayer(layer: L.Layer | null): layer is HeatLayerEx {
+  if (!layer) return false;
+  return (
+    typeof (layer as HeatLayerEx).setLatLngs === 'function' &&
+    typeof (layer as HeatLayerEx).setOptions === 'function'
+  );
 }
 
 /**

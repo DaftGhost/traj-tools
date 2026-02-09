@@ -27,14 +27,14 @@ export function getCommands(): CommandItem[] {
       id: 'file.export',
       name: '导出数据',
       description: '导出当前航线数据',
-      action: () => import('../export/index').then(m => m.exportData()),
+      action: () => import('../export/index').then(m => m.exportData()).catch(console.error),
       category: '文件'
     },
     {
       id: 'file.exportSegment',
       name: '导出航段',
       description: '导出选中的航段',
-      action: () => import('../export/index').then(m => m.exportSegment()),
+      action: () => import('../export/index').then(m => m.exportSegment()).catch(console.error),
       category: '文件'
     },
     {
@@ -90,8 +90,8 @@ export function getCommands(): CommandItem[] {
         const route = store.getSelectedRoute();
         if (route) {
           route.editable = !route.editable;
-          import('../routes/geometry').then(m => m.updateRouteDisplayGeometry(route));
-          import('../ui/index').then(m => m.updateRouteList());
+          import('../routes/geometry').then(m => m.updateRouteDisplayGeometry(route)).catch(console.error);
+          import('../ui/index').then(m => m.updateRouteList()).catch(console.error);
         }
       },
       category: '编辑'
@@ -107,9 +107,9 @@ export function getCommands(): CommandItem[] {
             route.points.splice(store.selectedPoint.pointIdx, 1);
             store.selectedPoint = null;
             store.clearEditHandle();
-            import('../routes/geometry').then(m => m.updateRouteDisplayGeometry(route));
-            import('../ui/index').then(m => m.updateRouteList());
-            import('../ui/index').then(m => m.updatePropertiesPanel());
+            import('../routes/geometry').then(m => m.updateRouteDisplayGeometry(route)).catch(console.error);
+            import('../ui/index').then(m => m.updateRouteList()).catch(console.error);
+            import('../ui/index').then(m => m.updatePropertiesPanel()).catch(console.error);
           }
         }
       },
@@ -137,14 +137,14 @@ export function getCommands(): CommandItem[] {
       id: 'tools.toggleMeasure',
       name: '切换测距工具',
       description: '开启/关闭距离测量工具',
-      action: () => import('../tools/measure').then(m => m.toggleMeasureMode()),
+      action: () => import('../tools/measure').then(m => m.toggleMeasureMode()).catch(console.error),
       category: '工具'
     },
     {
       id: 'tools.toggleSegment',
       name: '切换航段导出模式',
       description: '开启/关闭航段选择模式',
-      action: () => import('../tools/segment').then(m => m.toggleSegmentExportMode()),
+      action: () => import('../tools/segment').then(m => m.toggleSegmentExportMode()).catch(console.error),
       category: '工具'
     },
     {
@@ -155,7 +155,7 @@ export function getCommands(): CommandItem[] {
         store.heatmap.enabled = !store.heatmap.enabled;
         const checkbox = document.getElementById('heatmap-enabled') as HTMLInputElement;
         if (checkbox) checkbox.checked = store.heatmap.enabled;
-        import('../tools/heatmap').then(m => m.toggleHeatLayer(store.heatmap.enabled));
+        import('../tools/heatmap').then(m => m.toggleHeatLayer(store.heatmap.enabled)).catch(console.error);
       },
       category: '工具'
     }

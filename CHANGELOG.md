@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Heatmap type safety improved with proper type guards instead of `as unknown as` casts
 
+### Code Quality
+- Added error handling (.catch) to all dynamic imports in command definitions
+- Added comprehensive `isHeatLayer()` type guard checking both methods
+- Added `HeatLatLng` type with optional intensity for leaflet.heat compatibility
+- Added Leaflet type import to heatLayer.ts
+- Fixed misleading comments in snap.test.ts (projection coordinates)
+- Fixed test assertions to properly check preconditions instead of silent pass
+
 ### Tests
 - Added `src/utils/uiStatus.test.ts` (12 tests)
 - Added `src/utils/snap.test.ts` (17 tests)

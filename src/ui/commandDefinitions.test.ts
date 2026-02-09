@@ -146,13 +146,12 @@ describe('ui/commandDefinitions', () => {
       const commands = getCommands();
       const fullCmd = commands.find(c => c.description !== undefined);
 
-      if (fullCmd) {
-        expect(fullCmd.id).toBeDefined();
-        expect(fullCmd.name).toBeDefined();
-        expect(fullCmd.description).toBeDefined();
-        expect(fullCmd.action).toBeDefined();
-        expect(fullCmd.category).toBeDefined();
-      }
+      expect(fullCmd).toBeDefined();
+      expect(fullCmd!.id).toBeDefined();
+      expect(fullCmd!.name).toBeDefined();
+      expect(fullCmd!.description).toBeDefined();
+      expect(fullCmd!.action).toBeDefined();
+      expect(fullCmd!.category).toBeDefined();
     });
 
     it('should accept commands without description', async () => {
@@ -161,12 +160,11 @@ describe('ui/commandDefinitions', () => {
       const commands = getCommands();
       const noDescCmd = commands.find(c => c.description === undefined);
 
-      if (noDescCmd) {
-        expect(noDescCmd.id).toBeDefined();
-        expect(noDescCmd.name).toBeDefined();
-        expect(noDescCmd.action).toBeDefined();
-        expect(noDescCmd.category).toBeDefined();
-      }
+      expect(noDescCmd).toBeDefined();
+      expect(noDescCmd!.id).toBeDefined();
+      expect(noDescCmd!.name).toBeDefined();
+      expect(noDescCmd!.action).toBeDefined();
+      expect(noDescCmd!.category).toBeDefined();
     });
   });
 });
