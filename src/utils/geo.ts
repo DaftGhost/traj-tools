@@ -112,6 +112,142 @@ export function perpendicularDistance(
   );
 }
 
+function triangleArea(p1: Point, p2: Point, p3: Point): number {
+  return Math.abs(
+    p1.lon * (p2.lat - p3.lat) +
+      p2.lon * (p3.lat - p1.lat) +
+      p3.lon * (p1.lat - p2.lat)
+  ) / 2;
+}
+
+/**
+ * Visvalingam-Whyatt 简化算法（返回保留点索引）
+ */
+export function visvalingamWhyattIndices(points: Point[], targetPoints: number): number[] {
+  const n = points.length;
+  if (n < 3) return points.map((_, i) => i);
+
+  const desiredCount = Math.max(2, Math.min(n, Math.round(targetPoints)));
+  if (desiredCount >= n) return points.map((_, i) => i);
+
+  const prev: number[] = Array.from({ length: n }, (_, i) => i - 1);
+  const next: number[] = Array.from({ length: n }, (_, i) => (i === n - 1 ? -1 : i + 1));
+  const removed: boolean[] = new Array(n).fill(false);
+  const versions: number[] = new Array(n).fill(0);
+
+  type HeapEntry = { area: number; index: number; version: number };
+  const heap: HeapEntry[] = [];
+
+  const heapPush = (entry: HeapEntry): void => {
+    heap.push(entry);
+    let i = heap.length - 1;
+
+    while (i > 0) {
+      const parent = Math.floor((i - 1) / 2);
+      if (heap[parent].area <= heap[i].area) break;
+      [heap[parent], heap[i]] = [heap[i], heap[parent]];
+      i = parent;
+    }
+  };
+
+  const heapPop = (): HeapEntry | undefined => {
+    if (heap.length === 0) return undefined;
+
+    const top = heap[0];
+    const last = heap.pop();
+
+    if (heap.length > 0 && last) {
+      heap[0] = last;
+      let i = 0;
+
+      while (true) {
+        const left = i * 2 + 1;
+        const right = i * 2 + 2;
+        let smallest = i;
+
+        if (left < heap.length && heap[left].area < heap[smallest].area) {
+          smallest = left;
+        }
+        if (right < heap.length && heap[right].area < heap[smallest].area) {
+          smallest = right;
+        }
+        if (smallest === i) break;
+
+        [heap[i], heap[smallest]] = [heap[smallest], heap[i]];
+        i = smallest;
+      }
+    }
+
+    return top;
+  };
+
+  const areaForIndex = (index: number): number => {
+    const prevIndex = prev[index];
+    const nextIndex = next[index];
+
+    if (prevIndex < 0 || nextIndex < 0) {
+      return Number.POSITIVE_INFINITY;
+    }
+
+    return triangleArea(points[prevIndex], points[index], points[nextIndex]);
+  };
+
+  for (let i = 1; i < n - 1; i++) {
+    heapPush({ area: areaForIndex(i), index: i, version: versions[i] });
+  }
+
+  let remaining = n;
+
+  while (remaining > desiredCount && heap.length > 0) {
+    const entry = heapPop();
+    if (!entry) break;
+
+    const { index, version } = entry;
+
+    if (removed[index] || index === 0 || index === n - 1 || version !== versions[index]) {
+      continue;
+    }
+
+    const prevIndex = prev[index];
+    const nextIndex = next[index];
+
+    if (prevIndex < 0 || nextIndex < 0) {
+      continue;
+    }
+
+    removed[index] = true;
+    remaining--;
+
+    next[prevIndex] = nextIndex;
+    prev[nextIndex] = prevIndex;
+
+    if (prevIndex > 0 && prevIndex < n - 1 && !removed[prevIndex]) {
+      versions[prevIndex]++;
+      heapPush({
+        area: areaForIndex(prevIndex),
+        index: prevIndex,
+        version: versions[prevIndex],
+      });
+    }
+
+    if (nextIndex > 0 && nextIndex < n - 1 && !removed[nextIndex]) {
+      versions[nextIndex]++;
+      heapPush({
+        area: areaForIndex(nextIndex),
+        index: nextIndex,
+        version: versions[nextIndex],
+      });
+    }
+  }
+
+  const keepIndices: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (!removed[i]) keepIndices.push(i);
+  }
+
+  return keepIndices;
+}
+
 /**
  * 计算方位角
  */

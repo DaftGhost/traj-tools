@@ -9,6 +9,7 @@ import { invalidateMapSize } from '../map';
  * 初始化面板切换
  */
 export function initializePanelSwitching(): void {
+  initializeSidebarResize();
   // Activity Bar 图标点击
   document.querySelectorAll('.activity-item').forEach((item) => {
     const el = item as HTMLElement;
@@ -94,4 +95,48 @@ export function togglePropertiesPanel(): void {
   setTimeout(() => {
     invalidateMapSize();
   }, 300);
+}
+
+/**
+ * 边栏宽度 resize 状态
+ */
+let isResizing = false;
+let startX = 0;
+let startWidth = 0;
+
+/**
+ * 初始化边栏宽度调节
+ */
+function initializeSidebarResize(): void {
+  const handle = document.getElementById('side-bar-resize');
+  if (!handle) return;
+
+  handle.addEventListener('mousedown', (e) => {
+    isResizing = true;
+    startX = e.clientX;
+    startWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--side-bar-width'), 10) || 280;
+    document.body.style.cursor = 'col-resize';
+    handle.style.cursor = 'col-resize';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+
+    const diff = e.clientX - startX;
+    const minWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--side-bar-min-width'), 10) || 200;
+    const maxWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--side-bar-max-width'), 10) || 500;
+    const newWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + diff));
+    document.documentElement.style.setProperty('--side-bar-width', `${newWidth}px`);
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isResizing) {
+      isResizing = false;
+      document.body.style.cursor = '';
+      const handle = document.getElementById('side-bar-resize');
+      if (handle) handle.style.cursor = 'col-resize';
+      invalidateMapSize();
+    }
+  });
 }

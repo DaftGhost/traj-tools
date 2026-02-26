@@ -120,7 +120,7 @@ function handleViewMenu(): void {
  * 帮助菜单
  */
 function handleHelpMenu(): void {
-  alert('航线编辑器 v2.0\n\n功能说明:\n- 导入: 点击"选择文件"或使用菜单"文件 > 导入"\n- 编辑: 选中航线后点击"开启编辑"\n- 测距: 点击测距工具后点击地图添加测距点\n- 热力图: 选中航线后勾选"启用热力图"\n- 导出: 点击导出按钮导出CSV文件\n\n快捷键:\n- Ctrl+B: 切换侧边栏\n- Ctrl+E: 开启/关闭编辑\n- Ctrl+M: 开启/关闭测距\n- Ctrl+H: 开启/关闭热力图\n- Ctrl+X: 导出数据\n- Ctrl+Shift+P: 命令面板');
+  import('./panels').then(m => m.switchToPanel('help'));
 }
 
 /**
@@ -620,11 +620,7 @@ function initializeHeatmapControls(): void {
  * 初始化设置
  */
 function initializeSettings(): void {
-  const compactMode = document.getElementById('setting-compact-mode') as HTMLInputElement;
-  compactMode?.addEventListener('change', (e) => {
-    const compact = (e.target as HTMLInputElement).checked;
-    document.getElementById('app')?.classList.toggle('compact-mode', compact);
-  });
+  // 设置面板初始化
 }
 
 /**

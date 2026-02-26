@@ -27,21 +27,45 @@ export const PALETTE = [
   '#F4511E', // Deep Orange
 ];
 
-// Douglas-Peucker 简化配置
+const DEFAULT_SIMPLIFY_RETAIN_RATIO = 0.1;
+const MIN_SIMPLIFY_RETAIN_RATIO = 0.01;
+const MAX_SIMPLIFY_RETAIN_RATIO = 1;
+
+function parseSimplifyRetainRatio(value: string | undefined): number {
+  if (value === undefined) {
+    return DEFAULT_SIMPLIFY_RETAIN_RATIO;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return DEFAULT_SIMPLIFY_RETAIN_RATIO;
+  }
+
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_SIMPLIFY_RETAIN_RATIO;
+  }
+
+  return Math.min(MAX_SIMPLIFY_RETAIN_RATIO, Math.max(MIN_SIMPLIFY_RETAIN_RATIO, parsed));
+}
+
+// 轨迹简化配置
 export const SIMPLIFY_CONFIG = {
   /**
-   * 根据缩放级别返回简化容差（度）
-   * 较小的值保留更多点，0 表示不简化
-   * zoom >= 15 时完全不简化，显示原始精度
+   * Visvalingam-Whyatt 保点比例（与缩放级别无关）
+   */
+  retainRatio: parseSimplifyRetainRatio(import.meta.env.VITE_SIMPLIFY_RETAIN_RATIO),
+  /**
+   * 保留 Douglas-Peucker 容差配置作为兜底
    */
   tolerancePxForZoom(zoom: number): number {
-    if (zoom >= 15) return 0;        // 高缩放级别，完全不简化，显示所有原始点
-    if (zoom >= 14) return 0.001;    // 高精度
-    if (zoom >= 13) return 0.002;    // 中高精度
-    if (zoom >= 12) return 0.005;    // 中等精度
-    if (zoom >= 10) return 0.01;     // 低精度
-    if (zoom >= 8) return 0.05;      // 很低精度
-    if (zoom >= 6) return 0.1;       // 极低精度
+    if (zoom >= 15) return 0;
+    if (zoom >= 14) return 0.001;
+    if (zoom >= 13) return 0.002;
+    if (zoom >= 12) return 0.005;
+    if (zoom >= 10) return 0.01;
+    if (zoom >= 8) return 0.05;
+    if (zoom >= 6) return 0.1;
     return 0.5;
   },
   minPoints: 2,

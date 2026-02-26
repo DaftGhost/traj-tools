@@ -5,7 +5,7 @@
 
 import { store, Point, Route, SmoothDragContext, SmoothDragItem } from '../state/store';
 import { SIMPLIFY_CONFIG, SMOOTH_CONFIG } from '../config/constants';
-import { douglasPeuckerIndices, haversineDistance } from '../utils/geo';
+import { douglasPeuckerIndices, haversineDistance, visvalingamWhyattIndices } from '../utils/geo';
 import { buildMarkerIcon } from '../utils/markerIcon';
 import * as L from 'leaflet';
 
@@ -122,11 +122,19 @@ export function updateRouteDisplayGeometry(route: Route): void {
     return;
   }
 
-  const zoom = store.map.getZoom();
-  const tolerance = SIMPLIFY_CONFIG.tolerancePxForZoom(zoom);
+  const targetPoints = Math.max(
+    SIMPLIFY_CONFIG.minPoints,
+    Math.ceil(route.points.length * SIMPLIFY_CONFIG.retainRatio)
+  );
 
-  // 计算简化索引
-  const keepIndices = douglasPeuckerIndices(route.points, tolerance);
+  let keepIndices = visvalingamWhyattIndices(route.points, targetPoints);
+
+  // 兜底：若 VW 结果异常，回退到 Douglas-Peucker
+  if (keepIndices.length < SIMPLIFY_CONFIG.minPoints || keepIndices.some((i) => i < 0 || i >= route.points.length)) {
+    const zoom = store.map.getZoom();
+    const tolerance = SIMPLIFY_CONFIG.tolerancePxForZoom(zoom);
+    keepIndices = douglasPeuckerIndices(route.points, tolerance);
+  }
 
   // 提取简化后的点
   const simplified = keepIndices.map((i) => route.points[i]);

@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_APP_TITLE: string;
+  readonly VITE_SIMPLIFY_RETAIN_RATIO?: string;
 }
 
 interface ImportMeta {

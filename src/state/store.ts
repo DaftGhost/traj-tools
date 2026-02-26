@@ -49,7 +49,7 @@ export interface Route {
 }
 
 export interface UIState {
-  activePanel: 'files' | 'edit' | 'measure' | 'heatmap' | 'export' | 'settings';
+  activePanel: 'files' | 'edit' | 'measure' | 'heatmap' | 'export' | 'settings' | 'help';
   propertiesPanelCollapsed: boolean;
   sideBarCollapsed: boolean;
   routeSearchQuery: string;
