@@ -186,6 +186,27 @@ function initializeMapControls(): void {
   fitBoundsBtn?.addEventListener('click', fitAllRoutes);
 }
 
+type EndpointQuickControlRefs = {
+  controls: HTMLElement;
+  startBtn: HTMLButtonElement;
+  endBtn: HTMLButtonElement;
+};
+
+let endpointQuickControlRefs: EndpointQuickControlRefs | null = null;
+
+function getEndpointQuickControlRefs(): EndpointQuickControlRefs | null {
+  if (endpointQuickControlRefs) return endpointQuickControlRefs;
+
+  const controls = document.getElementById('endpoint-quick-controls');
+  const startBtn = document.getElementById('select-start-endpoint') as HTMLButtonElement | null;
+  const endBtn = document.getElementById('select-end-endpoint') as HTMLButtonElement | null;
+
+  if (!controls || !startBtn || !endBtn) return null;
+
+  endpointQuickControlRefs = { controls, startBtn, endBtn };
+  return endpointQuickControlRefs;
+}
+
 /**
  * 初始化编辑控件
  */
@@ -198,6 +219,10 @@ function initializeEditControls(): void {
 
   const deleteNodeBtn = document.getElementById('delete-node');
   deleteNodeBtn?.addEventListener('click', deleteSelectedNode);
+
+  const endpointRefs = getEndpointQuickControlRefs();
+  endpointRefs?.startBtn.addEventListener('click', () => selectEndpointQuickly('start'));
+  endpointRefs?.endBtn.addEventListener('click', () => selectEndpointQuickly('end'));
 
   const newRouteBtn = document.getElementById('new-route');
   newRouteBtn?.addEventListener('click', () => {
@@ -215,6 +240,7 @@ function initializeEditControls(): void {
 
   initializeMergeDialog();
   initializeSmoothControls();
+  syncEndpointQuickControls();
 }
 
 /**
@@ -259,27 +285,17 @@ function handleAddNodeClick(e: L.LeafletMouseEvent): void {
   if (!addNodeMode) return;
 
   const route = store.getSelectedRoute();
-  if (!route) return;
-
-  // 获取添加位置设置
-  const positionInput = document.querySelector('input[name="add-node-position"]:checked') as HTMLInputElement;
-  const position = positionInput?.value || 'end';
+  if (!route || !route.editable) return;
 
   import('../routes/geometry').then(m => {
-    if (position === 'start') {
-      // 在开头添加（索引 0 后插入，即成为新索引 1）
-      m.insertNodeAt(route.id, e.latlng.lat, e.latlng.lng, 0);
-    } else if (position === 'between') {
-      // 在两节点之间添加 - 找到最近的段
-      const nearestIdx = m.findNearestSegmentIndex(e.latlng, route);
-      if (nearestIdx >= 0) {
-        m.insertNodeAt(route.id, e.latlng.lat, e.latlng.lng, nearestIdx);
-      } else {
-        // 没找到合适的段，默认添加到末尾
-        m.addNodeToRoute(route.id, e.latlng.lat, e.latlng.lng);
-      }
+    const selectedPoint = store.selectedPoint;
+    const isStartSelected = selectedPoint &&
+      selectedPoint.routeId === route.id &&
+      selectedPoint.pointIdx === 0;
+
+    if (isStartSelected) {
+      m.prependNodeToRoute(route.id, e.latlng.lat, e.latlng.lng);
     } else {
-      // 默认在末尾添加
       m.addNodeToRoute(route.id, e.latlng.lat, e.latlng.lng);
     }
   });
@@ -337,10 +353,23 @@ function toggleEditMode(): void {
   const route = store.getSelectedRoute();
   if (!route) return;
 
-  // 如果关闭编辑模式，清除选中状态和拖拽标记
+  // 如果关闭编辑模式，清除选中状态和拖拽标记，并关闭添加节点模式
   if (route.editable) {
     store.clearEditHandle();
     store.selectedPoint = null;
+
+    if (addNodeMode) {
+      addNodeMode = false;
+      const addNodeBtn = document.getElementById('add-node');
+      if (addNodeBtn) {
+        addNodeBtn.classList.remove('btn-success');
+        addNodeBtn.textContent = '添加节点';
+      }
+      if (store.map) {
+        store.map.off('click', handleAddNodeClick);
+      }
+    }
+
     // 清除 geometry 模块中的拖拽标记
     import('../routes/geometry').then(m => m.clearDragMarker());
   }
@@ -367,20 +396,21 @@ function toggleEditMode(): void {
  * 删除选中节点
  */
 export function deleteSelectedNode(): void {
-  if (!store.selectedPoint) return;
+  const selectedAtTrigger = store.selectedPoint;
+  if (!selectedAtTrigger) return;
 
-  const route = store.getRouteById(store.selectedPoint.routeId);
-  if (!route || !route.editable) return;
+  import('../routes/geometry').then(m => {
+    const currentSelected = store.selectedPoint;
+    if (!currentSelected) return;
+    if (
+      currentSelected.routeId !== selectedAtTrigger.routeId ||
+      currentSelected.pointIdx !== selectedAtTrigger.pointIdx
+    ) {
+      return;
+    }
 
-  const idx = store.selectedPoint.pointIdx;
-  route.points.splice(idx, 1);
-
-  store.selectedPoint = null;
-  store.clearEditHandle();
-
-  import('../routes/geometry').then(m => m.updateRouteDisplayGeometry(route));
-  updateRouteList();
-  updatePropertiesPanel();
+    m.deleteNodeFromRoute(selectedAtTrigger.routeId, selectedAtTrigger.pointIdx);
+  });
 }
 
 /**
@@ -636,6 +666,8 @@ function initializeRouteList(): void {
  * 更新航线列表显示
  */
 export function updateRouteList(): void {
+  getEndpointQuickControlRefs();
+
   const container = document.getElementById('routes-list');
   if (!container) return;
 
@@ -714,6 +746,43 @@ export function updateRouteList(): void {
 /**
  * 更新属性面板
  */
+function syncEndpointQuickControls(): void {
+  const refs = getEndpointQuickControlRefs();
+  if (!refs) return;
+
+  const { controls, startBtn, endBtn } = refs;
+  const route = store.getSelectedRoute();
+  const isEditable = Boolean(route?.editable);
+  controls.hidden = !isEditable;
+
+  if (!isEditable || !route) {
+    startBtn.classList.remove('btn-active');
+    endBtn.classList.remove('btn-active');
+    startBtn.disabled = true;
+    endBtn.disabled = true;
+    return;
+  }
+
+  const hasPoints = route.points.length > 0;
+  startBtn.disabled = !hasPoints;
+  endBtn.disabled = !hasPoints;
+
+  const selected = store.selectedPoint;
+  const isRouteSelectedPoint = selected && selected.routeId === route.id;
+
+  startBtn.classList.toggle('btn-active', Boolean(isRouteSelectedPoint && selected.pointIdx === 0));
+  endBtn.classList.toggle('btn-active', Boolean(isRouteSelectedPoint && selected.pointIdx === route.points.length - 1));
+}
+
+function selectEndpointQuickly(endpoint: 'start' | 'end'): void {
+  const route = store.getSelectedRoute();
+  if (!route || !route.editable) return;
+
+  import('../routes/geometry').then(m => {
+    m.selectRouteEndpoint(route.id, endpoint);
+  });
+}
+
 export function updatePropertiesPanel(): void {
   const route = store.getSelectedRoute();
   const point = store.selectedPoint;
@@ -755,6 +824,8 @@ export function updatePropertiesPanel(): void {
     pointLatEl!.textContent = '-';
     pointLonEl!.textContent = '-';
   }
+
+  syncEndpointQuickControls();
 }
 
 /**

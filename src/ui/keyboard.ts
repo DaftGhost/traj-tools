@@ -8,6 +8,7 @@ import { fitAllRoutes } from '../map';
 import { toggleCommandPalette as uiToggleCommandPalette } from './commands';
 import { updateRouteList, updatePropertiesPanel } from './index';
 import { deleteSelectedNode } from './index';
+import { clearDragMarker } from '../routes/geometry';
 
 /**
  * 初始化键盘快捷键
@@ -110,6 +111,7 @@ function handleEscape(): void {
 
   // 清除选择
   if (store.selectedPoint || store.selectedRouteId) {
+    clearDragMarker();
     store.clearSelection();
     updateRouteList();
     updatePropertiesPanel();

@@ -892,31 +892,17 @@ input[type="number"]:focus {
   gap: 8px;
 }
 
-/* 添加节点位置选择 */
-.add-node-position-controls {
+/* 端点快速选择 */
+.endpoint-quick-controls {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px dashed var(--color-border-light);
 }
 
-.radio-label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-}
-
-.radio-label input[type="radio"] {
-  accent-color: var(--color-primary);
-  cursor: pointer;
-}
-
-.radio-label:hover {
-  color: var(--color-text-primary);
+.endpoint-quick-controls .btn {
+  flex: 1;
 }
 
 /* 测距控制 */

@@ -318,6 +318,7 @@ export function clearDragMarker(): void {
   dragRouteId = null;
   dragPointIdx = -1;
   smoothDragContext = null;
+  store.clearEditHandle();
 }
 
 // UI 刷新函数（将在 UI 模块中实现）
@@ -348,6 +349,69 @@ export function addNodeToRoute(routeId: string, lat: number, lon: number): void 
   // 刷新UI
   refreshRoutesList();
   updatePropertiesPanel();
+}
+
+/**
+ * 在航线开头添加节点（绝对首点前插）
+ */
+export function prependNodeToRoute(routeId: string, lat: number, lon: number): void {
+  const route = store.getRouteById(routeId);
+  if (!route || !route.editable) return;
+
+  clearDragMarker();
+
+  route.points.unshift({ lat, lon });
+  route._distCache = undefined;
+
+  updateRouteDisplayGeometry(route);
+  store.selectPoint(routeId, 0);
+
+  refreshRoutesList();
+  updatePropertiesPanel();
+}
+
+/**
+ * 选中航线端点并创建可拖拽编辑句柄
+ */
+export function selectRouteEndpoint(routeId: string, endpoint: 'start' | 'end'): boolean {
+  const route = store.getRouteById(routeId);
+  if (!route || !route.editable || route.points.length === 0 || !store.map) {
+    return false;
+  }
+
+  const pointIdx = endpoint === 'start' ? 0 : route.points.length - 1;
+  const point = route.points[pointIdx];
+
+  createDragMarker(route, pointIdx, L.latLng(point.lat, point.lon));
+  return true;
+}
+
+/**
+ * 删除指定索引节点
+ */
+export function deleteNodeFromRoute(routeId: string, pointIdx: number): boolean {
+  const route = store.getRouteById(routeId);
+  if (!route || !route.editable) return false;
+  if (pointIdx < 0 || pointIdx >= route.points.length) return false;
+
+  clearDragMarker();
+
+  route.points.splice(pointIdx, 1);
+  route._distCache = undefined;
+
+  const selected = store.selectedPoint;
+  if (selected && selected.routeId === routeId) {
+    if (selected.pointIdx === pointIdx) {
+      store.selectedPoint = null;
+    } else if (selected.pointIdx > pointIdx) {
+      store.selectPoint(routeId, selected.pointIdx - 1);
+    }
+  }
+
+  updateRouteDisplayGeometry(route);
+  refreshRoutesList();
+  updatePropertiesPanel();
+  return true;
 }
 
 /**
