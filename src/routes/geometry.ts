@@ -111,19 +111,19 @@ function simplifyOpenPath(points: Point[]): Point[] {
 }
 
 function simplifyClosedRing(points: Point[]): Point[] {
-  if (points.length <= 3) {
+  if (points.length <= 4) {
     return points.map((point) => ({ ...point }));
   }
 
   const resampled = equidistantResampleClosed(points, 10);
   const targetPoints = Math.max(
-    4,
+    5,
     Math.ceil(resampled.length * SIMPLIFY_CONFIG.retainRatio)
   );
 
   let keepIndices = visvalingamWhyattIndices(resampled, targetPoints);
 
-  if (keepIndices.length < 4 || keepIndices.some((i) => i < 0 || i >= resampled.length)) {
+  if (keepIndices.length < 5 || keepIndices.some((i) => i < 0 || i >= resampled.length)) {
     const zoom = store.map?.getZoom() ?? 8;
     const tolerance = SIMPLIFY_CONFIG.tolerancePxForZoom(zoom);
     keepIndices = douglasPeuckerIndices(resampled, tolerance);
