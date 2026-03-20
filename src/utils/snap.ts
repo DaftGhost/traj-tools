@@ -74,15 +74,14 @@ export function pointToSegmentDistance(lat: number, lon: number, segStart: Point
 /**
  * Get route segments for snapping
  */
-export function getSnapGeometry(routeId?: string): Array<{ start: Point; end: Point; routeId: string }> {
+export function getSnapGeometry(routeId?: string): Array<{ start: Point; end: Point; routeId: string; pointIdx: number }> {
   const routes = routeId
     ? [store.getRouteById(routeId)].filter((r): r is NonNullable<typeof r> => r != null && r.visible)
     : store.routes.filter(r => r.visible);
 
-  const segments: Array<{ start: Point; end: Point; routeId: string }> = [];
+  const segments: Array<{ start: Point; end: Point; routeId: string; pointIdx: number }> = [];
 
   for (const route of routes) {
-    // Edit mode uses original geometry, otherwise use simplified geometry
     const points = route.editable ? route.points : route._display?.simplified || route.points;
 
     for (let i = 0; i < points.length - 1; i++) {
@@ -90,7 +89,8 @@ export function getSnapGeometry(routeId?: string): Array<{ start: Point; end: Po
         segments.push({
           start: points[i],
           end: points[i + 1],
-          routeId: route.id
+          routeId: route.id,
+          pointIdx: i
         });
       }
     }
@@ -137,9 +137,8 @@ export function snapToRoutes(latlng: L.LatLng, snapSelectedOnly: boolean = false
 
   // 2. Find nearest segment
   let minSegDist = Infinity;
-  let nearestSegment: { start: Point; end: Point; routeId: string } | null = null;
+  let nearestSegment: { start: Point; end: Point; routeId: string; pointIdx: number } | null = null;
   let nearestPointOnSegment: Point | null = null;
-  let segIdx = -1;
 
   for (let i = 0; i < snapGeometry.length; i++) {
     const seg = snapGeometry[i];
@@ -147,7 +146,6 @@ export function snapToRoutes(latlng: L.LatLng, snapSelectedOnly: boolean = false
     if (dist < minSegDist) {
       minSegDist = dist;
       nearestSegment = seg;
-      segIdx = i;
 
       // Calculate nearest point
       const dx = seg.end.lon - seg.start.lon;
@@ -193,7 +191,7 @@ export function snapToRoutes(latlng: L.LatLng, snapSelectedOnly: boolean = false
       return {
         lat: nearestPointOnSegment.lat,
         lon: nearestPointOnSegment.lon,
-        ref: { routeId: nearestSegment.routeId, segIdx, segFrac: Math.max(0, Math.min(1, t)) }
+        ref: { routeId: nearestSegment.routeId, segIdx: nearestSegment.pointIdx, segFrac: Math.max(0, Math.min(1, t)) }
       };
     }
   }

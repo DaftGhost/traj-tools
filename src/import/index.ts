@@ -180,9 +180,14 @@ function parseCoordinate(value: unknown): number {
 }
 export async function parseGeoJSONFile(file: File): Promise<Point[]> {
   const text = await file.text();
-  const geojson = JSON.parse(text) as GeoJSONGeometry | GeoJSONFeature | GeoJSONFeatureCollection;
+  let geojson: GeoJSONGeometry | GeoJSONFeature | GeoJSONFeatureCollection;
+  try {
+    geojson = JSON.parse(text);
+  } catch {
+    console.error('GeoJSON 文件格式错误：无法解析 JSON');
+    return [];
+  }
 
-  // 提取坐标点
   const points = extractPointsFromGeoJSON(geojson);
   return points;
 }
@@ -202,11 +207,8 @@ function extractPointsFromGeoJSON(geojson: GeoJSONGeometry | GeoJSONFeature | Ge
     return points;
   }
 
-  // 如果是 Feature，提取其 geometry
   if (geojson.type === 'Feature') {
-    if (!geojson.geometry) {
-      throw new Error('Feature 对象缺少 geometry 属性');
-    }
+    if (!geojson.geometry) return [];
     return extractPointsFromGeoJSON(geojson.geometry);
   }
 

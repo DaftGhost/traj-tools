@@ -613,21 +613,24 @@ function initializeHeatmapControls(): void {
 
   radiusSlider?.addEventListener('input', (e) => {
     const value = parseInt((e.target as HTMLInputElement).value);
-    document.getElementById('heatmap-radius-value')!.textContent = value.toString();
+    const el = document.getElementById('heatmap-radius-value');
+    if (el) el.textContent = value.toString();
     store.heatmap.options.radius = value;
     import('../tools/heatmap').then(m => m.updateCurrentHeatOptions({ radius: value }));
   });
 
   blurSlider?.addEventListener('input', (e) => {
     const value = parseInt((e.target as HTMLInputElement).value);
-    document.getElementById('heatmap-blur-value')!.textContent = value.toString();
+    const el = document.getElementById('heatmap-blur-value');
+    if (el) el.textContent = value.toString();
     store.heatmap.options.blur = value;
     import('../tools/heatmap').then(m => m.updateCurrentHeatOptions({ blur: value }));
   });
 
   opacitySlider?.addEventListener('input', (e) => {
     const value = parseInt((e.target as HTMLInputElement).value);
-    document.getElementById('heatmap-opacity-value')!.textContent = (value / 100).toString();
+    const el = document.getElementById('heatmap-opacity-value');
+    if (el) el.textContent = (value / 100).toString();
     store.heatmap.options.opacity = value / 100;
     import('../tools/heatmap').then(m => m.updateCurrentHeatOptions({ minOpacity: value / 100 }));
   });
@@ -793,15 +796,15 @@ export function updatePropertiesPanel(): void {
   const routeStatusEl = document.getElementById('prop-route-status');
 
   if (route) {
-    routeNameEl!.textContent = route.name;
-    routePointsEl!.textContent = route.points.length.toString();
-    routeLengthEl!.textContent = calculateTotalLength(route);
-    routeStatusEl!.textContent = route.editable ? '可编辑' : '只读';
+    if (routeNameEl) routeNameEl.textContent = route.name;
+    if (routePointsEl) routePointsEl.textContent = route.points.length.toString();
+    if (routeLengthEl) routeLengthEl.textContent = calculateTotalLength(route);
+    if (routeStatusEl) routeStatusEl.textContent = route.editable ? '可编辑' : '只读';
   } else {
-    routeNameEl!.textContent = '-';
-    routePointsEl!.textContent = '-';
-    routeLengthEl!.textContent = '-';
-    routeStatusEl!.textContent = '-';
+    if (routeNameEl) routeNameEl.textContent = '-';
+    if (routePointsEl) routePointsEl.textContent = '-';
+    if (routeLengthEl) routeLengthEl.textContent = '-';
+    if (routeStatusEl) routeStatusEl.textContent = '-';
   }
 
   const pointIndexEl = document.getElementById('prop-point-index');
@@ -811,18 +814,18 @@ export function updatePropertiesPanel(): void {
   if (point) {
     const p = store.getRouteById(point.routeId)?.points[point.pointIdx];
     if (p && typeof p.lat === 'number' && typeof p.lon === 'number') {
-      pointIndexEl!.textContent = point.pointIdx.toString();
-      pointLatEl!.textContent = p.lat.toFixed(6);
-      pointLonEl!.textContent = p.lon.toFixed(6);
+      if (pointIndexEl) pointIndexEl.textContent = point.pointIdx.toString();
+      if (pointLatEl) pointLatEl.textContent = p.lat.toFixed(6);
+      if (pointLonEl) pointLonEl.textContent = p.lon.toFixed(6);
     } else {
-      pointIndexEl!.textContent = point.pointIdx.toString();
-      pointLatEl!.textContent = '-';
-      pointLonEl!.textContent = '-';
+      if (pointIndexEl) pointIndexEl.textContent = point.pointIdx.toString();
+      if (pointLatEl) pointLatEl.textContent = '-';
+      if (pointLonEl) pointLonEl.textContent = '-';
     }
   } else {
-    pointIndexEl!.textContent = '-';
-    pointLatEl!.textContent = '-';
-    pointLonEl!.textContent = '-';
+    if (pointIndexEl) pointIndexEl.textContent = '-';
+    if (pointLatEl) pointLatEl.textContent = '-';
+    if (pointLonEl) pointLonEl.textContent = '-';
   }
 
   syncEndpointQuickControls();

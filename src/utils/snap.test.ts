@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { Point } from '../state/store';
+import { store, type Point } from '../state/store';
 import type { SnapRef } from '../types/refs';
 
 describe('utils/snap', () => {
@@ -209,6 +209,55 @@ describe('utils/snap', () => {
       // Vertical distance 0.1 degrees ~11km
       expect(distance).toBeGreaterThan(10000);
       expect(distance).toBeLessThan(12000);
+    });
+  });
+
+  describe('getSnapGeometry', () => {
+    it('should include per-route pointIdx for each segment', async () => {
+      const { getSnapGeometry } = await import('./snap');
+
+      // Set up store with two routes
+      store.routes = [
+        {
+          id: 'r1', name: 'R1', color: '#f00', editable: false, visible: true, selected: false,
+          points: [
+            { lat: 0, lon: 0 }, { lat: 1, lon: 0 }, { lat: 2, lon: 0 }
+          ],
+          _display: {
+            simplified: [{ lat: 0, lon: 0 }, { lat: 1, lon: 0 }, { lat: 2, lon: 0 }],
+            layer: null, markers: []
+          }
+        },
+        {
+          id: 'r2', name: 'R2', color: '#0f0', editable: false, visible: true, selected: false,
+          points: [
+            { lat: 10, lon: 10 }, { lat: 11, lon: 10 }, { lat: 12, lon: 10 }, { lat: 13, lon: 10 }
+          ],
+          _display: {
+            simplified: [{ lat: 10, lon: 10 }, { lat: 11, lon: 10 }, { lat: 12, lon: 10 }, { lat: 13, lon: 10 }],
+            layer: null, markers: []
+          }
+        }
+      ] as unknown as typeof store.routes;
+
+      const segs = getSnapGeometry();
+
+      // Route 1: 2 segments (indices 0,1), Route 2: 3 segments (indices 0,1,2)
+      expect(segs).toHaveLength(5);
+
+      // Route 1 segments should have pointIdx 0 and 1
+      expect(segs[0].routeId).toBe('r1');
+      expect(segs[0].pointIdx).toBe(0);
+      expect(segs[1].routeId).toBe('r1');
+      expect(segs[1].pointIdx).toBe(1);
+
+      // Route 2 segments should have pointIdx 0, 1, 2 (not 2, 3, 4)
+      expect(segs[2].routeId).toBe('r2');
+      expect(segs[2].pointIdx).toBe(0);
+      expect(segs[3].routeId).toBe('r2');
+      expect(segs[3].pointIdx).toBe(1);
+      expect(segs[4].routeId).toBe('r2');
+      expect(segs[4].pointIdx).toBe(2);
     });
   });
 

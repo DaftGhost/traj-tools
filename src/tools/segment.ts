@@ -369,13 +369,20 @@ function extractRouteSegment(route: { id: string; points: Point[] }, start: Segm
   if (!start || !end) return null;
 
   if (start.ref?.routeId === route.id && end.ref?.routeId === route.id) {
-    const startIdx = start.ref.segIdx;
-    const endIdx = end.ref.segIdx;
-    const startFrac = start.ref.segFrac;
-    const endFrac = end.ref.segFrac;
+    let startIdx = start.ref.segIdx;
+    let endIdx = end.ref.segIdx;
+    let startFrac = start.ref.segFrac;
+    let endFrac = end.ref.segFrac;
+
+    // Normalize direction so startIdx <= endIdx
+    if (startIdx > endIdx || (startIdx === endIdx && startFrac > endFrac)) {
+      [startIdx, endIdx] = [endIdx, startIdx];
+      [startFrac, endFrac] = [endFrac, startFrac];
+    }
 
     const segment: Point[] = [];
 
+    // Start point (interpolated or exact vertex)
     if (startFrac > 0.001) {
       const p1 = route.points[startIdx];
       const p2 = route.points[startIdx + 1];
@@ -387,15 +394,14 @@ function extractRouteSegment(route: { id: string; points: Point[] }, start: Segm
       segment.push({ ...route.points[startIdx] });
     }
 
-    const minIdx = Math.min(startIdx, endIdx);
-    const maxIdx = Math.max(startIdx, endIdx);
-
-    for (let i = minIdx + 1; i <= maxIdx; i++) {
+    // Intermediate vertices between segments
+    for (let i = startIdx + 1; i <= endIdx; i++) {
       if (i > 0 && i < route.points.length) {
         segment.push({ ...route.points[i] });
       }
     }
 
+    // End point (interpolated or exact vertex)
     if (endFrac < 0.999) {
       const p1 = route.points[endIdx];
       const p2 = route.points[endIdx + 1];
@@ -404,7 +410,9 @@ function extractRouteSegment(route: { id: string; points: Point[] }, start: Segm
         lon: p1.lon + (p2.lon - p1.lon) * endFrac
       });
     } else {
-      segment.push({ ...route.points[endIdx + 1] });
+      if (endIdx + 1 < route.points.length) {
+        segment.push({ ...route.points[endIdx + 1] });
+      }
     }
 
     return segment;

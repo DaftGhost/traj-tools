@@ -10,7 +10,10 @@ import type { Point } from '../state/store';
 export function haversineDistance(p1: Point, p2: Point): number {
   const R = 6371000;
   const dLat = toRad(p2.lat - p1.lat);
-  const dLon = toRad(p2.lon - p1.lon);
+  let lonDiff = p2.lon - p1.lon;
+  if (lonDiff > 180) lonDiff -= 360;
+  else if (lonDiff < -180) lonDiff += 360;
+  const dLon = toRad(lonDiff);
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRad(p1.lat)) *
@@ -252,12 +255,15 @@ export function visvalingamWhyattIndices(points: Point[], targetPoints: number):
  * 计算方位角
  */
 export function calculateBearing(p1: Point, p2: Point): number {
-  const dLon = toRad(p2.lon - p1.lon);
+  let lonDiff = p2.lon - p1.lon;
+  if (lonDiff > 180) lonDiff -= 360;
+  else if (lonDiff < -180) lonDiff += 360;
+  const dLon = toRad(lonDiff);
   const lat1 = toRad(p1.lat);
   const lat2 = toRad(p2.lat);
   const y = Math.sin(dLon) * Math.cos(lat2);
   const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-  let bearing = toDeg(Math.atan2(y, x));
+  const bearing = toDeg(Math.atan2(y, x));
   return (bearing + 360) % 360;
 }
 
@@ -266,7 +272,55 @@ export function calculateBearing(p1: Point, p2: Point): number {
  */
 export function bearingToDirection(bearing: number): string {
   const directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  if (!Number.isFinite(bearing)) return directions[0];
   const index = Math.round(bearing / 45) % 8;
   return directions[index];
+}
+
+/**
+ * 等距重采样 - 按固定距离间隔插入新点
+ * 用于在简化前增加冗余点，保证关键转折不被丢失
+ * @param points 原始轨迹点
+ * @param intervalMeters 重采样间隔（米），默认 10m
+ * @returns 重采样后的点
+ */
+export function equidistantResample(points: Point[], intervalMeters: number = 10): Point[] {
+  if (points.length < 2) return [...points];
+
+  const result: Point[] = [{ ...points[0] }];
+  let distSinceLastSample = 0;
+
+  for (let i = 1; i < points.length; i++) {
+    const segStart = points[i - 1];
+    const segEnd = points[i];
+    const segLen = haversineDistance(segStart, segEnd);
+
+    if (segLen <= 0) continue;
+
+    let consumed = 0;
+    while (consumed < segLen) {
+      const remaining = intervalMeters - distSinceLastSample;
+      if (consumed + remaining > segLen) {
+        distSinceLastSample += segLen - consumed;
+        break;
+      }
+      consumed += remaining;
+      distSinceLastSample = 0;
+
+      const t = consumed / segLen;
+      result.push({
+        lat: segStart.lat + (segEnd.lat - segStart.lat) * t,
+        lon: segStart.lon + (segEnd.lon - segStart.lon) * t,
+      });
+    }
+  }
+
+  const lastOriginal = points[points.length - 1];
+  const lastResult = result[result.length - 1];
+  if (lastResult.lat !== lastOriginal.lat || lastResult.lon !== lastOriginal.lon) {
+    result.push({ ...lastOriginal });
+  }
+
+  return result;
 }
 

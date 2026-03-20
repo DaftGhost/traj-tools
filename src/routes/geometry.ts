@@ -5,7 +5,7 @@
 
 import { store, Point, Route, SmoothDragContext, SmoothDragItem } from '../state/store';
 import { SIMPLIFY_CONFIG, SMOOTH_CONFIG } from '../config/constants';
-import { douglasPeuckerIndices, haversineDistance, visvalingamWhyattIndices } from '../utils/geo';
+import { douglasPeuckerIndices, equidistantResample, haversineDistance, visvalingamWhyattIndices } from '../utils/geo';
 import { buildMarkerIcon } from '../utils/markerIcon';
 import * as L from 'leaflet';
 
@@ -122,22 +122,26 @@ export function updateRouteDisplayGeometry(route: Route): void {
     return;
   }
 
+  // Step 1: 等距重采样（10m 间隔），增加冗余点
+  const resampled = equidistantResample(route.points, 10);
+
   const targetPoints = Math.max(
     SIMPLIFY_CONFIG.minPoints,
-    Math.ceil(route.points.length * SIMPLIFY_CONFIG.retainRatio)
+    Math.ceil(resampled.length * SIMPLIFY_CONFIG.retainRatio)
   );
 
-  let keepIndices = visvalingamWhyattIndices(route.points, targetPoints);
+  // Step 2: 对重采样结果进行简化
+  let keepIndices = visvalingamWhyattIndices(resampled, targetPoints);
 
   // 兜底：若 VW 结果异常，回退到 Douglas-Peucker
-  if (keepIndices.length < SIMPLIFY_CONFIG.minPoints || keepIndices.some((i) => i < 0 || i >= route.points.length)) {
+  if (keepIndices.length < SIMPLIFY_CONFIG.minPoints || keepIndices.some((i) => i < 0 || i >= resampled.length)) {
     const zoom = store.map.getZoom();
     const tolerance = SIMPLIFY_CONFIG.tolerancePxForZoom(zoom);
-    keepIndices = douglasPeuckerIndices(route.points, tolerance);
+    keepIndices = douglasPeuckerIndices(resampled, tolerance);
   }
 
   // 提取简化后的点
-  const simplified = keepIndices.map((i) => route.points[i]);
+  const simplified = keepIndices.map((i) => resampled[i]);
 
   route._display.simplified = simplified;
 
@@ -158,11 +162,11 @@ function updateRouteLayer(route: Route): void {
     route._display.layer.remove();
   }
 
-  // 移除旧标记（但不清空 markers 数组，因为我们要保持引用）
+  route._display.markers.forEach(m => m.remove());
   route._display.markers = [];
 
   // 过滤可见点
-  const visiblePoints = route._display.simplified.filter((p) => p.lat && p.lon);
+  const visiblePoints = route._display.simplified.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
 
   if (visiblePoints.length === 0) return;
 
@@ -211,7 +215,7 @@ function findNearestPointIndex(latlng: L.LatLng, route: Route): number {
 
   for (let i = 0; i < route.points.length; i++) {
     const p = route.points[i];
-    if (!p || !p.lat || !p.lon) continue;
+    if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue;
     const dist = haversineDistance(target, p);
     if (dist < minDist) {
       minDist = dist;
