@@ -627,6 +627,11 @@ body {
   background: var(--color-bg-hover);
 }
 
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .btn-primary {
   background: var(--color-accent);
   border-color: var(--color-accent);
@@ -804,6 +809,17 @@ input[type="number"]:focus {
   background: var(--color-error);
   color: #ffffff;
   border-color: var(--color-error);
+}
+
+.route-geometry-tag {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 /* 平滑控制 */
@@ -1161,6 +1177,15 @@ input[type="number"]:focus {
 .merge-route-item.selected {
   background: var(--color-bg-active);
   color: white;
+}
+
+.merge-route-item.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.merge-route-item.disabled:hover {
+  background: transparent;
 }
 
 .merge-route-item .route-color {

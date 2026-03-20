@@ -18,6 +18,8 @@ export interface Point {
   lon: number;
 }
 
+export type GeometryType = 'polyline' | 'polygon';
+
 export interface HeatmapOptions {
   radius: number;
   blur: number;
@@ -29,17 +31,22 @@ export interface Route {
   id: string;
   name: string;
   points: Point[];
+  geometryType?: GeometryType;
+  holes?: Point[][];
   color: string;
   editable: boolean;
   visible: boolean;
   selected: boolean;
   _display?: {
     simplified: Point[];
-    layer: L.Polyline | null;
+    holes?: Point[][];
+    layer: L.Polyline | L.Polygon | null;
     markers: L.Marker[];
   };
   /** 累计距离缓存: Map<pointIndex, cumulativeDistanceInMeters> */
   _distCache?: number[];
+  /** 孔洞累计距离缓存 */
+  _holeDistCaches?: number[][];
   /** 热力图层 */
   heatLayer?: L.Layer | null;
   /** 是否启用热力图 */
@@ -58,6 +65,7 @@ export interface UIState {
 export interface EditHandle {
   routeId: string;
   pointIdx: number;
+  ringIndex?: number;
   marker: L.Marker;
 }
 
@@ -101,9 +109,51 @@ export interface SmoothDragItem {
 export interface SmoothDragContext {
   routeId: string;
   movedIdx: number;
+  ringIndex?: number;
   /** 累积位移，用于增量计算 */
   accumulatedDelta: { lat: number; lon: number };
   items: SmoothDragItem[];
+}
+
+export function getRouteGeometryType(route: Pick<Route, 'geometryType'>): GeometryType {
+  return route.geometryType === 'polygon' ? 'polygon' : 'polyline';
+}
+
+export function isPolygonRoute(route: Pick<Route, 'geometryType'>): boolean {
+  return getRouteGeometryType(route) === 'polygon';
+}
+
+export function getPointsForRing(route: Pick<Route, 'points' | 'holes'>, ringIndex: number = 0): Point[] {
+  if (ringIndex <= 0) {
+    return route.points;
+  }
+
+  return route.holes?.[ringIndex - 1] ?? [];
+}
+
+export function setPointsForRing(route: Route, ringIndex: number, points: Point[]): void {
+  if (ringIndex <= 0) {
+    route.points = points;
+    return;
+  }
+
+  if (!route.holes) {
+    route.holes = [];
+  }
+
+  route.holes[ringIndex - 1] = points;
+}
+
+export function getRouteRings(route: Pick<Route, 'points' | 'holes' | 'geometryType'>): Point[][] {
+  if (!isPolygonRoute(route)) {
+    return [route.points];
+  }
+
+  return [route.points, ...(route.holes ?? [])];
+}
+
+export function getRouteVertexCount(route: Pick<Route, 'points' | 'holes' | 'geometryType'>): number {
+  return getRouteRings(route).reduce((total, ring) => total + ring.length, 0);
 }
 
 // ============================================
@@ -114,7 +164,7 @@ class StateStore {
   // 核心状态
   routes: Route[] = [];
   selectedRouteId: string | null = null;
-  selectedPoint: { routeId: string; pointIdx: number } | null = null;
+  selectedPoint: { routeId: string; pointIdx: number; ringIndex?: number } | null = null;
   editHandle: EditHandle | null = null;
   dragContext: { startLat: number; startLon: number } | null = null;
 
@@ -185,11 +235,20 @@ class StateStore {
     return this.selectedRouteId ? this.getRouteById(this.selectedRouteId) : undefined;
   }
 
-  addRoute(name: string, points: Point[]): Route {
+  addRoute(
+    name: string,
+    points: Point[],
+    options: {
+      geometryType?: GeometryType;
+      holes?: Point[][];
+    } = {}
+  ): Route {
     const route: Route = {
       id: crypto.randomUUID(),
       name,
       points,
+      geometryType: options.geometryType ?? 'polyline',
+      holes: options.holes?.map((ring) => ring.map((point) => ({ ...point }))) ?? [],
       color: this.getNextColor(),
       editable: false,
       visible: true,
@@ -220,8 +279,10 @@ class StateStore {
     this.clearEditHandle();
   }
 
-  selectPoint(routeId: string, pointIdx: number): void {
-    this.selectedPoint = { routeId, pointIdx };
+  selectPoint(routeId: string, pointIdx: number, ringIndex?: number): void {
+    this.selectedPoint = ringIndex !== undefined
+      ? { routeId, pointIdx, ringIndex }
+      : { routeId, pointIdx };
   }
 
   clearSelection(): void {
@@ -233,8 +294,10 @@ class StateStore {
   // 编辑句柄方法
   // ============================================
 
-  setEditHandle(routeId: string, pointIdx: number, marker: L.Marker): void {
-    this.editHandle = { routeId, pointIdx, marker };
+  setEditHandle(routeId: string, pointIdx: number, marker: L.Marker, ringIndex?: number): void {
+    this.editHandle = ringIndex !== undefined
+      ? { routeId, pointIdx, marker, ringIndex }
+      : { routeId, pointIdx, marker };
   }
 
   clearEditHandle(): void {
@@ -248,7 +311,7 @@ class StateStore {
   // ============================================
 
   getTotalPoints(): number {
-    return this.routes.reduce((sum, r) => sum + r.points.length, 0);
+    return this.routes.reduce((sum, route) => sum + getRouteVertexCount(route), 0);
   }
 
   getVisibleRouteCount(): number {

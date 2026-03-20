@@ -2,7 +2,7 @@
  * Command definitions for the command palette
  */
 
-import { store } from '../state/store';
+import { store, isPolygonRoute } from '../state/store';
 import { fitAllRoutes } from '../map';
 import { switchBaseLayer } from '../map/layers';
 
@@ -83,6 +83,57 @@ export function getCommands(): CommandItem[] {
       category: '底图'
     },
     {
+      id: 'edit.newRoute',
+      name: '新建航线',
+      description: '开始绘制新的折线航线',
+      action: () => import('../tools/draw').then(m => {
+        if (m.getDrawingModeKind?.() === 'polyline') {
+          m.finishDrawingRoute();
+        } else if (!m.isDrawingMode()) {
+          m.startDrawingRoute();
+        }
+      }).catch(console.error),
+      category: '编辑'
+    },
+    {
+      id: 'edit.newPolygon',
+      name: '新建多边形',
+      description: '开始绘制新的多边形',
+      action: () => import('../tools/draw').then(m => {
+        if (m.getDrawingModeKind?.() === 'polygon') {
+          m.finishDrawingRoute();
+        } else if (!m.isDrawingMode()) {
+          m.startDrawingPolygon();
+        }
+      }).catch(console.error),
+      category: '编辑'
+    },
+    {
+      id: 'edit.addHole',
+      name: '添加孔洞',
+      description: '为当前选中的多边形绘制孔洞',
+      action: () => {
+        const route = store.getSelectedRoute();
+        if (!route || !isPolygonRoute(route)) {
+          alert('请先选择一条多边形');
+          return;
+        }
+        if (!route.editable) {
+          alert('请先开启编辑模式');
+          return;
+        }
+
+        import('../tools/draw').then(m => {
+          if (m.getDrawingModeKind?.() === 'hole') {
+            m.finishDrawingRoute();
+          } else if (!m.isDrawingMode()) {
+            m.startDrawingHole(route.id);
+          }
+        }).catch(console.error);
+      },
+      category: '编辑'
+    },
+    {
       id: 'edit.toggleMode',
       name: '切换编辑模式',
       description: '开启/关闭当前航线的编辑模式',
@@ -102,15 +153,10 @@ export function getCommands(): CommandItem[] {
       description: '删除当前选中的航点',
       action: () => {
         if (store.selectedPoint) {
-          const route = store.getRouteById(store.selectedPoint.routeId);
-          if (route && route.editable) {
-            route.points.splice(store.selectedPoint.pointIdx, 1);
-            store.selectedPoint = null;
-            store.clearEditHandle();
-            import('../routes/geometry').then(m => m.updateRouteDisplayGeometry(route)).catch(console.error);
-            import('../ui/index').then(m => m.updateRouteList()).catch(console.error);
-            import('../ui/index').then(m => m.updatePropertiesPanel()).catch(console.error);
-          }
+          const selected = store.selectedPoint;
+          import('../routes/geometry').then(m => {
+            m.deleteNodeFromRoute(selected.routeId, selected.pointIdx, selected.ringIndex ?? 0);
+          }).catch(console.error);
         }
       },
       category: '编辑'
@@ -123,6 +169,10 @@ export function getCommands(): CommandItem[] {
         const route = store.getSelectedRoute();
         if (!route) {
           alert('请先选择一条航线');
+          return;
+        }
+        if (isPolygonRoute(route)) {
+          alert('暂不支持多边形合并');
           return;
         }
         if (store.routes.length < 2) {

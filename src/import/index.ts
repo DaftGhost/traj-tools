@@ -3,14 +3,22 @@
  */
 
 import Papa from 'papaparse';
-import { store, Point } from '../state/store';
+import { store, Point, GeometryType } from '../state/store';
 import { addRoute } from '../routes/index';
-import { fitRoute } from '../map';
+import { fitAllRoutes, fitRoute } from '../map';
+import { stripClosingPoint } from '../utils/geo';
 
 interface ParsedPoint {
   lat: number;
   lon: number;
   [key: string]: unknown;
+}
+
+interface ParsedRouteGeometry {
+  points: Point[];
+  geometryType: GeometryType;
+  holes?: Point[][];
+  name?: string;
 }
 
 // GeoJSON 类型定义
@@ -109,6 +117,27 @@ export async function parseCsvFile(file: File): Promise<ParsedPoint[]> {
   });
 }
 
+function normalizeRing(ring: [number, number][]): Point[] {
+  return stripClosingPoint(ring.map(([lon, lat]) => ({ lat, lon })));
+}
+
+function getGeometryName(properties?: Record<string, unknown>): string | undefined {
+  if (!properties) return undefined;
+
+  const candidates = ['name', 'title', 'routeName', 'id', 'Name', 'TITLE'];
+  for (const key of candidates) {
+    const value = properties[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+    if (typeof value === 'number') {
+      return String(value);
+    }
+  }
+
+  return undefined;
+}
+
 /**
  * 检测纬度列名
  */
@@ -178,7 +207,7 @@ function parseCoordinate(value: unknown): number {
   }
   return NaN;
 }
-export async function parseGeoJSONFile(file: File): Promise<Point[]> {
+export async function parseGeoJSONFile(file: File): Promise<ParsedRouteGeometry[]> {
   const text = await file.text();
   let geojson: GeoJSONGeometry | GeoJSONFeature | GeoJSONFeatureCollection;
   try {
@@ -188,92 +217,97 @@ export async function parseGeoJSONFile(file: File): Promise<Point[]> {
     return [];
   }
 
-  const points = extractPointsFromGeoJSON(geojson);
-  return points;
+  return extractRoutesFromGeoJSON(geojson);
 }
 
 /**
  * 从 GeoJSON 中提取坐标点
  */
-function extractPointsFromGeoJSON(geojson: GeoJSONGeometry | GeoJSONFeature | GeoJSONFeatureCollection): Point[] {
-  // 如果是 FeatureCollection，遍历所有 Feature
+function extractRoutesFromGeoJSON(geojson: GeoJSONGeometry | GeoJSONFeature | GeoJSONFeatureCollection): ParsedRouteGeometry[] {
   if (geojson.type === 'FeatureCollection') {
-    const points: Point[] = [];
-    for (const feature of geojson.features) {
-      if (feature.geometry) {
-        points.push(...extractPointsFromGeoJSON(feature.geometry));
-      }
-    }
-    return points;
+    return geojson.features.flatMap((feature) => {
+      if (!feature.geometry) return [];
+      return extractRoutesFromGeometry(feature.geometry, feature.properties);
+    });
   }
 
   if (geojson.type === 'Feature') {
     if (!geojson.geometry) return [];
-    return extractPointsFromGeoJSON(geojson.geometry);
+    return extractRoutesFromGeometry(geojson.geometry, geojson.properties);
   }
 
-  // 处理几何对象
-  const coords = extractCoordinates(geojson);
-  if (!coords || coords.length === 0) {
-    throw new Error('无法从 GeoJSON 中提取坐标');
-  }
-
-  return coords;
+  return extractRoutesFromGeometry(geojson);
 }
 
 /**
  * 从几何对象中提取坐标数组
  */
-function extractCoordinates(geometry: GeoJSONGeometry): Point[] {
+function extractRoutesFromGeometry(
+  geometry: GeoJSONGeometry,
+  properties?: Record<string, unknown>
+): ParsedRouteGeometry[] {
+  const name = getGeometryName(properties);
+
   switch (geometry.type) {
     case 'Point': {
-      // Point: [lon, lat]
       const [lon, lat] = geometry.coordinates;
-      return [{ lat, lon }];
+      return [{ points: [{ lat, lon }], geometryType: 'polyline', name }];
     }
 
     case 'MultiPoint': {
-      // MultiPoint: [[lon, lat], ...]
-      return geometry.coordinates.map(([lon, lat]) => ({ lat, lon }));
+      return [{
+        points: geometry.coordinates.map(([lon, lat]) => ({ lat, lon })),
+        geometryType: 'polyline',
+        name,
+      }];
     }
 
     case 'LineString': {
-      // LineString: [[lon, lat], ...]
-      return geometry.coordinates.map(([lon, lat]) => ({ lat, lon }));
+      return [{
+        points: geometry.coordinates.map(([lon, lat]) => ({ lat, lon })),
+        geometryType: 'polyline',
+        name,
+      }];
     }
 
     case 'MultiLineString': {
-      // MultiLineString: [[[lon, lat], ...], ...]
-      const points: Point[] = [];
-      for (const line of geometry.coordinates) {
-        points.push(...line.map(([lon, lat]) => ({ lat, lon })));
-      }
-      return points;
+      return geometry.coordinates.map((line, index) => ({
+        points: line.map(([lon, lat]) => ({ lat, lon })),
+        geometryType: 'polyline',
+        name: geometry.coordinates.length > 1 && name ? `${name}_${index + 1}` : name,
+      }));
     }
 
     case 'Polygon': {
-      // Polygon: [[[lon, lat], ...], ...] - 只取外环（第一个环）
       if (geometry.coordinates.length === 0) return [];
-      return geometry.coordinates[0].map(([lon, lat]) => ({ lat, lon }));
+
+      const outer = normalizeRing(geometry.coordinates[0]);
+      const holes = geometry.coordinates.slice(1).map(normalizeRing).filter((ring) => ring.length >= 3);
+      return [{
+        points: outer,
+        geometryType: 'polygon',
+        holes,
+        name,
+      }];
     }
 
     case 'MultiPolygon': {
-      // MultiPolygon: 多个多边形，取所有外环
-      const points: Point[] = [];
-      for (const polygon of geometry.coordinates) {
-        if (polygon.length > 0) {
-          points.push(...polygon[0].map(([lon, lat]) => ({ lat, lon })));
-        }
-      }
-      return points;
+      return geometry.coordinates.flatMap((polygon, index) => {
+        if (polygon.length === 0) return [];
+
+        const outer = normalizeRing(polygon[0]);
+        const holes = polygon.slice(1).map(normalizeRing).filter((ring) => ring.length >= 3);
+        return [{
+          points: outer,
+          geometryType: 'polygon',
+          holes,
+          name: geometry.coordinates.length > 1 && name ? `${name}_${index + 1}` : name,
+        }];
+      });
     }
 
     case 'GeometryCollection': {
-      const points: Point[] = [];
-      for (const geom of geometry.geometries) {
-        points.push(...extractPointsFromGeoJSON(geom));
-      }
-      return points;
+      return geometry.geometries.flatMap((geom) => extractRoutesFromGeometry(geom, properties));
     }
 
     default:
@@ -284,7 +318,7 @@ function extractCoordinates(geometry: GeoJSONGeometry): Point[] {
 /**
  * 解析 WKT 文件
  */
-export async function parseWKTFile(file: File): Promise<Point[]> {
+export async function parseWKTFile(file: File): Promise<ParsedRouteGeometry[]> {
   const text = await file.text();
   const wktModule = await import('wellknown');
 
@@ -297,9 +331,7 @@ export async function parseWKTFile(file: File): Promise<Point[]> {
     throw new Error('无法解析 WKT 格式');
   }
 
-  // 使用类型断言，因为 wellknown 返回的类型是泛化的
-  const points = extractPointsFromGeoJSON(geojson as GeoJSONGeometry);
-  return points;
+  return extractRoutesFromGeoJSON(geojson as GeoJSONGeometry);
 }
 
 /**
@@ -338,7 +370,7 @@ async function detectFileType(file: File): Promise<'csv' | 'geojson' | 'wkt' | '
   });
 }
 
-export async function parseFile(file: File): Promise<Point[]> {
+export async function parseFile(file: File): Promise<ParsedRouteGeometry[]> {
   console.log('[parseFile] Called with:', file.name);
   const fileType = await detectFileType(file);
   console.log('[parseFile] Detected type:', fileType);
@@ -349,7 +381,10 @@ export async function parseFile(file: File): Promise<Point[]> {
       return parseWKTFile(file);
     case 'csv':
     default:
-      return parseCsvFile(file);
+      return [{
+        points: await parseCsvFile(file),
+        geometryType: 'polyline',
+      }];
   }
 }
 
@@ -357,25 +392,39 @@ export async function parseFile(file: File): Promise<Point[]> {
  * 导入路由
  */
 export async function importRoute(file: File): Promise<void> {
-  const points = await parseFile(file);
-
-  console.log('Parsed points count:', points.length);
-  if (points.length > 0) {
-    console.log('First point:', points[0]);
-  }
-
-  if (points.length < 2) {
-    throw new Error('航点数量不足，至少需要 2 个点');
-  }
-
-  const routePoints: Point[] = points.map(p => ({ lat: p.lat, lon: p.lon }));
   const routeName = file.name.replace(/\.[^/.]+$/, '');
+  const parsedRoutes = await parseFile(file);
 
-  const route = addRoute(routeName, routePoints);
-  store.selectRoute(route.id);
+  if (parsedRoutes.length === 0) {
+    throw new Error('未能从文件中解析出可导入的几何对象');
+  }
 
-  // 聚焦到新导入的航线
-  fitRoute(route.id);
+  const createdRoutes = parsedRoutes.map((parsed, index) => {
+    const minPoints = parsed.geometryType === 'polygon' ? 3 : 2;
+    if (parsed.points.length < minPoints) {
+      throw new Error(parsed.geometryType === 'polygon'
+        ? '多边形至少需要 3 个点'
+        : '航点数量不足，至少需要 2 个点');
+    }
+
+    const name = parsed.name || (parsedRoutes.length === 1 ? routeName : `${routeName}_${index + 1}`);
+    return addRoute(name, parsed.points.map((point) => ({ lat: point.lat, lon: point.lon })), {
+      geometryType: parsed.geometryType,
+      holes: parsed.holes?.map((ring) => ring.map((point) => ({ lat: point.lat, lon: point.lon }))),
+    });
+  });
+
+  if (createdRoutes.length === 0) {
+    throw new Error('导入失败：没有生成任何航线');
+  }
+
+  store.selectRoute(createdRoutes[0].id);
+
+  if (createdRoutes.length === 1) {
+    fitRoute(createdRoutes[0].id);
+  } else {
+    fitAllRoutes();
+  }
 
   // 更新属性面板
   import('../ui/index').then(m => m.updatePropertiesPanel());

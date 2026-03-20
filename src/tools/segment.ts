@@ -4,10 +4,11 @@
  */
 
 import * as L from 'leaflet';
-import { store, Point } from '../state/store';
-import { haversineDistance } from '../utils/geo';
-import { snapToRoutes, pointToSegmentDistance } from '../utils/snap';
+import { store, Point, getPointsForRing, isPolygonRoute } from '../state/store';
+import { haversineDistance, pointsEqual } from '../utils/geo';
+import { snapToRoutes, pointToSegmentDistance, getSnapGeometry } from '../utils/snap';
 import type { SnapRef } from '../types/refs';
+import { getRouteSegment, updateRouteDistanceCache } from '../routes/geometry';
 import { setStatus } from '../utils/uiStatus';
 
 let segmentExportMode = false;
@@ -277,17 +278,16 @@ function drawPerpendicularSearchArea(point: SegmentPoint, radius: number): void 
   if (!point.ref || !store.map) return;
 
   const route = store.getRouteById(point.ref.routeId);
-  if (!route || route.points.length < 2) return;
+  if (!route) return;
 
-  const segIdx = point.ref.segIdx;
-  if (segIdx < 0 || segIdx >= route.points.length - 1) return;
+  const ringIndex = point.ref.ringIndex ?? 0;
+  const segment = getRouteSegment(route, point.ref.segIdx, ringIndex);
+  if (!segment) return;
 
-  const p1 = route.points[segIdx];
-  const p2 = route.points[segIdx + 1];
   const frac = point.ref.segFrac;
 
-  const lat = p1.lat + (p2.lat - p1.lat) * frac;
-  const lon = p1.lon + (p2.lon - p1.lon) * frac;
+  const lat = segment.start.lat + (segment.end.lat - segment.start.lat) * frac;
+  const lon = segment.start.lon + (segment.end.lon - segment.start.lon) * frac;
 
   L.circle([lat, lon], {
     radius,
@@ -316,35 +316,25 @@ function findRoutesInPerpendicularRange(): void {
     if (!point.ref) return;
 
     const route = store.getRouteById(point.ref.routeId);
-    if (!route || route.points.length < 2) return;
+    if (!route) return;
 
-    const segIdx = point.ref.segIdx;
-    if (segIdx < 0 || segIdx >= route.points.length - 1) return;
+    const ringIndex = point.ref.ringIndex ?? 0;
+    const segment = getRouteSegment(route, point.ref.segIdx, ringIndex);
+    if (!segment) return;
 
-    const p1 = route.points[segIdx];
-    const p2 = route.points[segIdx + 1];
     const frac = point.ref.segFrac;
 
-    const lat = p1.lat + (p2.lat - p1.lat) * frac;
-    const lon = p1.lon + (p2.lon - p1.lon) * frac;
+    const lat = segment.start.lat + (segment.end.lat - segment.start.lat) * frac;
+    const lon = segment.start.lon + (segment.end.lon - segment.start.lon) * frac;
 
     for (const r of store.routes) {
       if (r.id === route.id) continue;
-      if (!r.visible || r.points.length < 2) continue;
+      if (!r.visible) continue;
 
-      for (let i = 0; i < r.points.length - 1; i++) {
-        const segStart = r.points[i];
-        const segEnd = r.points[i + 1];
-
-        const dist = pointToSegmentDistance(lat, lon, segStart, segEnd);
+      const segments = getSnapGeometry(r.id);
+      for (const snapSegment of segments) {
+        const dist = pointToSegmentDistance(lat, lon, snapSegment.start, snapSegment.end);
         if (dist <= radius) {
-          found.add(r.id);
-          break;
-        }
-
-        const dist1 = store.map!.distance([lat, lon], [segStart.lat, segStart.lon]);
-        const dist2 = store.map!.distance([lat, lon], [segEnd.lat, segEnd.lon]);
-        if (dist1 <= radius || dist2 <= radius) {
           found.add(r.id);
           break;
         }
@@ -364,101 +354,166 @@ function findRoutesInPerpendicularRange(): void {
 
 // REMOVED: pointToSegmentDistance - now imported from utils/snap.ts
 
-function extractRouteSegment(route: { id: string; points: Point[] }, start: SegmentPoint, end: SegmentPoint): Point[] | null {
+function interpolateRefPoint(route: { points: Point[] }, ref: SnapRef): Point | null {
+  const ringIndex = ref.ringIndex ?? 0;
+  const segment = getRouteSegment(route as never, ref.segIdx, ringIndex);
+  if (!segment) return null;
+
+  return {
+    lat: segment.start.lat + (segment.end.lat - segment.start.lat) * ref.segFrac,
+    lon: segment.start.lon + (segment.end.lon - segment.start.lon) * ref.segFrac,
+  };
+}
+
+function getRingCache(route: { points: Point[]; holes?: Point[][] }, ringIndex: number): number[] | null {
+  const typedRoute = route as never;
+  if (!(typedRoute as { _distCache?: number[] })._distCache) {
+    updateRouteDistanceCache(typedRoute);
+  }
+
+  const distCache = (typedRoute as { _distCache?: number[] })._distCache;
+  const holeDistCaches = (typedRoute as { _holeDistCaches?: number[][] })._holeDistCaches;
+  return ringIndex === 0 ? distCache ?? null : holeDistCaches?.[ringIndex - 1] ?? null;
+}
+
+function getRefPositionOnRing(route: { points: Point[]; holes?: Point[][] }, ref: SnapRef): number | null {
+  const ringIndex = ref.ringIndex ?? 0;
+  const ring = getPointsForRing(route as never, ringIndex);
+  const cache = getRingCache(route, ringIndex);
+  const segment = getRouteSegment(route as never, ref.segIdx, ringIndex);
+
+  if (!cache || !segment || ref.segIdx < 0 || ref.segIdx >= ring.length) {
+    return null;
+  }
+
+  return (cache[ref.segIdx] ?? 0) + haversineDistance(segment.start, segment.end) * ref.segFrac;
+}
+
+function pushUniquePoint(points: Point[], point: Point): void {
+  if (points.length === 0 || !pointsEqual(points[points.length - 1], point)) {
+    points.push({ ...point });
+  }
+}
+
+function extractOpenPathSegment(points: Point[], startRef: SnapRef, endRef: SnapRef): Point[] {
+  let startIdx = startRef.segIdx;
+  let endIdx = endRef.segIdx;
+  let startFrac = startRef.segFrac;
+  let endFrac = endRef.segFrac;
+
+  if (startIdx > endIdx || (startIdx === endIdx && startFrac > endFrac)) {
+    [startIdx, endIdx] = [endIdx, startIdx];
+    [startFrac, endFrac] = [endFrac, startFrac];
+  }
+
+  const segment: Point[] = [];
+  const startPoint = {
+    lat: points[startIdx].lat + (points[startIdx + 1].lat - points[startIdx].lat) * startFrac,
+    lon: points[startIdx].lon + (points[startIdx + 1].lon - points[startIdx].lon) * startFrac,
+  };
+  pushUniquePoint(segment, startFrac > 0.001 ? startPoint : points[startIdx]);
+
+  for (let i = startIdx + 1; i <= endIdx; i++) {
+    if (i >= 0 && i < points.length) {
+      pushUniquePoint(segment, points[i]);
+    }
+  }
+
+  if (endFrac < 0.999 && endIdx + 1 < points.length) {
+    pushUniquePoint(segment, {
+      lat: points[endIdx].lat + (points[endIdx + 1].lat - points[endIdx].lat) * endFrac,
+      lon: points[endIdx].lon + (points[endIdx + 1].lon - points[endIdx].lon) * endFrac,
+    });
+  }
+
+  return segment;
+}
+
+function extractClosedRingArc(points: Point[], startRef: SnapRef, endRef: SnapRef): Point[] {
+  const segment: Point[] = [];
+  const startPoint = {
+    lat: points[startRef.segIdx].lat + (points[(startRef.segIdx + 1) % points.length].lat - points[startRef.segIdx].lat) * startRef.segFrac,
+    lon: points[startRef.segIdx].lon + (points[(startRef.segIdx + 1) % points.length].lon - points[startRef.segIdx].lon) * startRef.segFrac,
+  };
+  pushUniquePoint(segment, startRef.segFrac > 0.001 ? startPoint : points[startRef.segIdx]);
+
+  let segIdx = startRef.segIdx;
+  while (segIdx !== endRef.segIdx) {
+    const nextVertexIdx = (segIdx + 1) % points.length;
+    pushUniquePoint(segment, points[nextVertexIdx]);
+    segIdx = nextVertexIdx;
+  }
+
+  if (endRef.segFrac < 0.999) {
+    pushUniquePoint(segment, {
+      lat: points[endRef.segIdx].lat + (points[(endRef.segIdx + 1) % points.length].lat - points[endRef.segIdx].lat) * endRef.segFrac,
+      lon: points[endRef.segIdx].lon + (points[(endRef.segIdx + 1) % points.length].lon - points[endRef.segIdx].lon) * endRef.segFrac,
+    });
+  } else {
+    pushUniquePoint(segment, points[(endRef.segIdx + 1) % points.length]);
+  }
+
+  return segment;
+}
+
+export function extractRouteSegment(route: { id: string; points: Point[]; holes?: Point[][] }, start: SegmentPoint, end: SegmentPoint): Point[] | null {
   if (!route || !route.points || route.points.length < 2) return null;
   if (!start || !end) return null;
 
-  if (start.ref?.routeId === route.id && end.ref?.routeId === route.id) {
-    let startIdx = start.ref.segIdx;
-    let endIdx = end.ref.segIdx;
-    let startFrac = start.ref.segFrac;
-    let endFrac = end.ref.segFrac;
+  if (start.ref?.routeId === route.id && end.ref?.routeId === route.id && (start.ref.ringIndex ?? 0) === (end.ref.ringIndex ?? 0)) {
+    const ringIndex = start.ref.ringIndex ?? 0;
+    const ring = getPointsForRing(route as never, ringIndex);
+    if (ring.length < 2) return null;
 
-    // Normalize direction so startIdx <= endIdx
-    if (startIdx > endIdx || (startIdx === endIdx && startFrac > endFrac)) {
-      [startIdx, endIdx] = [endIdx, startIdx];
-      [startFrac, endFrac] = [endFrac, startFrac];
-    }
+    if (isPolygonRoute(route as never)) {
+      const cache = getRingCache(route, ringIndex);
+      const startPos = getRefPositionOnRing(route, start.ref);
+      const endPos = getRefPositionOnRing(route, end.ref);
+      const perimeter = cache?.[ring.length];
 
-    const segment: Point[] = [];
-
-    // Start point (interpolated or exact vertex)
-    if (startFrac > 0.001) {
-      const p1 = route.points[startIdx];
-      const p2 = route.points[startIdx + 1];
-      segment.push({
-        lat: p1.lat + (p2.lat - p1.lat) * startFrac,
-        lon: p1.lon + (p2.lon - p1.lon) * startFrac
-      });
-    } else {
-      segment.push({ ...route.points[startIdx] });
-    }
-
-    // Intermediate vertices between segments
-    for (let i = startIdx + 1; i <= endIdx; i++) {
-      if (i > 0 && i < route.points.length) {
-        segment.push({ ...route.points[i] });
+      if (startPos == null || endPos == null || !perimeter) {
+        return null;
       }
+
+      const forwardDistance = endPos >= startPos ? endPos - startPos : perimeter - (startPos - endPos);
+      const backwardDistance = perimeter - forwardDistance;
+
+      return forwardDistance <= backwardDistance
+        ? extractClosedRingArc(ring, start.ref, end.ref)
+        : extractClosedRingArc(ring, end.ref, start.ref);
     }
 
-    // End point (interpolated or exact vertex)
-    if (endFrac < 0.999) {
-      const p1 = route.points[endIdx];
-      const p2 = route.points[endIdx + 1];
-      segment.push({
-        lat: p1.lat + (p2.lat - p1.lat) * endFrac,
-        lon: p1.lon + (p2.lon - p1.lon) * endFrac
-      });
-    } else {
-      if (endIdx + 1 < route.points.length) {
-        segment.push({ ...route.points[endIdx + 1] });
-      }
-    }
-
-    return segment;
+    return extractOpenPathSegment(ring, start.ref, end.ref);
   }
 
   if (start.ref?.routeId === route.id) {
-    const startIdx = start.ref.segIdx;
-    const startFrac = start.ref.segFrac;
+    const ring = getPointsForRing(route as never, start.ref.ringIndex ?? 0);
+    if (ring.length < 2 || isPolygonRoute(route as never)) return null;
 
     const segment: Point[] = [];
+    const startPoint = interpolateRefPoint(route, start.ref);
+    if (!startPoint) return null;
 
-    if (startFrac > 0.001) {
-      const p1 = route.points[startIdx];
-      const p2 = route.points[startIdx + 1];
-      segment.push({
-        lat: p1.lat + (p2.lat - p1.lat) * startFrac,
-        lon: p1.lon + (p2.lon - p1.lon) * startFrac
-      });
-    } else {
-      segment.push({ ...route.points[startIdx] });
-    }
-
-    for (let i = startIdx + 1; i < route.points.length; i++) {
-      segment.push({ ...route.points[i] });
+    pushUniquePoint(segment, start.ref.segFrac > 0.001 ? startPoint : ring[start.ref.segIdx]);
+    for (let i = start.ref.segIdx + 1; i < ring.length; i++) {
+      pushUniquePoint(segment, ring[i]);
     }
 
     return segment;
   }
 
   if (end.ref?.routeId === route.id) {
-    const endIdx = end.ref.segIdx;
-    const endFrac = end.ref.segFrac;
+    const ring = getPointsForRing(route as never, end.ref.ringIndex ?? 0);
+    if (ring.length < 2 || isPolygonRoute(route as never)) return null;
 
     const segment: Point[] = [];
-
-    for (let i = 0; i <= endIdx; i++) {
-      segment.push({ ...route.points[i] });
+    for (let i = 0; i <= end.ref.segIdx; i++) {
+      pushUniquePoint(segment, ring[i]);
     }
 
-    if (endFrac < 0.999 && endIdx + 1 < route.points.length) {
-      const p1 = route.points[endIdx];
-      const p2 = route.points[endIdx + 1];
-      segment.push({
-        lat: p1.lat + (p2.lat - p1.lat) * endFrac,
-        lon: p1.lon + (p2.lon - p1.lon) * endFrac
-      });
+    const endPoint = interpolateRefPoint(route, end.ref);
+    if (endPoint && end.ref.segFrac < 0.999) {
+      pushUniquePoint(segment, endPoint);
     }
 
     return segment;

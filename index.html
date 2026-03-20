@@ -117,6 +117,8 @@
               <section class="panel-section">
                 <div class="new-route-control">
                   <button id="new-route" class="btn btn-success">新建航线</button>
+                  <button id="new-polygon" class="btn btn-success">新建多边形</button>
+                  <button id="add-hole" class="btn">添加孔洞</button>
                   <button id="merge-routes" class="btn">合并航线</button>
                   <button id="fit-bounds" class="btn">重置视图</button>
                 </div>
@@ -332,7 +334,7 @@
                 </div>
                 <div class="help-format">
                   <strong>GeoJSON</strong>
-                  <p class="hint">LineString, FeatureCollection</p>
+                  <p class="hint">LineString, Polygon, MultiPolygon, FeatureCollection</p>
                 </div>
                 <div class="help-format">
                   <strong>WKT</strong>
@@ -396,12 +398,24 @@
                 <span id="prop-route-name">-</span>
               </div>
               <div class="property-row">
+                <label>类型</label>
+                <span id="prop-route-type">-</span>
+              </div>
+              <div class="property-row">
                 <label>点数</label>
                 <span id="prop-route-points">-</span>
               </div>
               <div class="property-row">
-                <label>长度</label>
+                <label>孔洞</label>
+                <span id="prop-route-holes">-</span>
+              </div>
+              <div class="property-row">
+                <label id="prop-route-length-label">长度</label>
                 <span id="prop-route-length">-</span>
+              </div>
+              <div class="property-row">
+                <label>面积</label>
+                <span id="prop-route-area">-</span>
               </div>
               <div class="property-row">
                 <label>状态</label>

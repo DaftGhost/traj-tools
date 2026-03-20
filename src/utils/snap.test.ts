@@ -259,17 +259,69 @@ describe('utils/snap', () => {
       expect(segs[4].routeId).toBe('r2');
       expect(segs[4].pointIdx).toBe(2);
     });
+
+    it('should include closing segments and hole segments for polygons', async () => {
+      const { getSnapGeometry } = await import('./snap');
+
+      store.routes = [
+        {
+          id: 'poly-1',
+          name: 'Polygon',
+          color: '#00f',
+          editable: false,
+          visible: true,
+          selected: false,
+          geometryType: 'polygon',
+          points: [
+            { lat: 0, lon: 0 },
+            { lat: 0, lon: 1 },
+            { lat: 1, lon: 1 },
+            { lat: 1, lon: 0 },
+          ],
+          holes: [[
+            { lat: 0.2, lon: 0.2 },
+            { lat: 0.2, lon: 0.4 },
+            { lat: 0.4, lon: 0.4 },
+            { lat: 0.4, lon: 0.2 },
+          ]],
+          _display: {
+            simplified: [
+              { lat: 0, lon: 0 },
+              { lat: 0, lon: 1 },
+              { lat: 1, lon: 1 },
+              { lat: 1, lon: 0 },
+            ],
+            holes: [[
+              { lat: 0.2, lon: 0.2 },
+              { lat: 0.2, lon: 0.4 },
+              { lat: 0.4, lon: 0.4 },
+              { lat: 0.4, lon: 0.2 },
+            ]],
+            layer: null,
+            markers: [],
+          }
+        }
+      ] as unknown as typeof store.routes;
+
+      const segs = getSnapGeometry();
+
+      expect(segs).toHaveLength(8);
+      expect(segs.some(seg => seg.routeId === 'poly-1' && seg.pointIdx === 3 && seg.ringIndex === 0)).toBe(true);
+      expect(segs.some(seg => seg.routeId === 'poly-1' && seg.pointIdx === 3 && seg.ringIndex === 1)).toBe(true);
+    });
   });
 
   describe('SnapRef interface', () => {
     it('should create valid SnapRef object', () => {
       const ref: SnapRef = {
         routeId: 'route-123',
+        ringIndex: 1,
         segIdx: 5,
         segFrac: 0.5
       };
 
       expect(ref.routeId).toBe('route-123');
+      expect(ref.ringIndex).toBe(1);
       expect(ref.segIdx).toBe(5);
       expect(ref.segFrac).toBe(0.5);
     });

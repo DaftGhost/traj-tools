@@ -3,11 +3,11 @@
  */
 
 import * as L from 'leaflet';
-import { store, Point } from '../state/store';
+import { store, Point, getPointsForRing, isPolygonRoute } from '../state/store';
 import { haversineDistance } from '../utils/geo';
 import { distanceMeters, snapToRoutes } from '../utils/snap';
 import type { SnapRef } from '../types/refs';
-import { getRouteCumulativeDistance, updateRouteDistanceCache } from '../routes/geometry';
+import { getRouteSegment, updateRouteDistanceCache } from '../routes/geometry';
 
 let measureMode = false;
 let measurePoints: MeasurePoint[] = [];
@@ -157,7 +157,7 @@ function updateMeasureHover(latlng: L.LatLng): void {
  * 获取两点之间的沿线距离
  */
 function getAlongRouteDistanceMeters(ref1: SnapRef | null, ref2: SnapRef | null): { meters: number; routeName: string } | null {
-  if (!ref1 || !ref2 || ref1.routeId !== ref2.routeId) {
+  if (!ref1 || !ref2 || ref1.routeId !== ref2.routeId || (ref1.ringIndex ?? 0) !== (ref2.ringIndex ?? 0)) {
     return null;
   }
 
@@ -166,23 +166,39 @@ function getAlongRouteDistanceMeters(ref1: SnapRef | null, ref2: SnapRef | null)
     return null;
   }
 
-  const idx1 = Math.min(ref1.segIdx, ref2.segIdx);
-  const idx2 = Math.max(ref1.segIdx, ref2.segIdx);
-
-  if (idx1 < 0 || idx2 >= route.points.length) {
+  const ringIndex = ref1.ringIndex ?? 0;
+  const ring = getPointsForRing(route, ringIndex);
+  if (ring.length < 2) {
     return null;
   }
 
-  // 确保有距离缓存
-  if (!route._distCache) {
-    updateRouteDistanceCache(route);
-    if (!route._distCache) {
-      return null;
-    }
+  if (ref1.segIdx < 0 || ref2.segIdx < 0 || ref1.segIdx >= ring.length || ref2.segIdx >= ring.length) {
+    return null;
   }
 
-  const dist = Math.abs(route._distCache[idx1] - route._distCache[idx2]);
-  return { meters: dist, routeName: route.name };
+  if (!route._distCache) {
+    updateRouteDistanceCache(route);
+  }
+
+  const cache = ringIndex === 0 ? route._distCache : route._holeDistCaches?.[ringIndex - 1];
+  if (!cache) return null;
+
+  const segment1 = getRouteSegment(route, ref1.segIdx, ringIndex);
+  const segment2 = getRouteSegment(route, ref2.segIdx, ringIndex);
+  if (!segment1 || !segment2) return null;
+
+  const seg1Meters = haversineDistance(segment1.start, segment1.end) * ref1.segFrac;
+  const seg2Meters = haversineDistance(segment2.start, segment2.end) * ref2.segFrac;
+  const pos1 = (cache[ref1.segIdx] ?? 0) + seg1Meters;
+  const pos2 = (cache[ref2.segIdx] ?? 0) + seg2Meters;
+  const diff = Math.abs(pos1 - pos2);
+
+  if (!isPolygonRoute(route)) {
+    return { meters: diff, routeName: route.name };
+  }
+
+  const perimeter = cache[ring.length] ?? diff;
+  return { meters: Math.min(diff, Math.max(0, perimeter - diff)), routeName: route.name };
 }
 
 /**

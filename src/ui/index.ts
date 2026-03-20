@@ -2,13 +2,14 @@
  * UI 初始化模块
  */
 
-import { store } from '../state/store';
+import { store, getPointsForRing, getRouteVertexCount, isPolygonRoute } from '../state/store';
 import { initializePanelSwitching } from './panels';
 import { initializeKeyboardShortcuts } from './keyboard';
 import { initializeCommandPalette } from './commands';
 import { getLastSelectedBaseLayer, switchBaseLayer } from '../map/layers';
 import { fitAllRoutes } from '../map';
 import { setUIRefreshFunctions } from '../routes/index';
+import { calculateLineLength, calculatePolygonArea, calculateRingPerimeter } from '../utils/geo';
 
 /**
  * 初始化所有 UI 组件
@@ -227,10 +228,40 @@ function initializeEditControls(): void {
   const newRouteBtn = document.getElementById('new-route');
   newRouteBtn?.addEventListener('click', () => {
     import('../tools/draw').then(m => {
-      if (m.isDrawingMode()) {
+      if (m.getDrawingModeKind?.() === 'polyline') {
         m.finishDrawingRoute();
-      } else {
+      } else if (!m.isDrawingMode()) {
         m.startDrawingRoute();
+      }
+    });
+  });
+
+  const newPolygonBtn = document.getElementById('new-polygon');
+  newPolygonBtn?.addEventListener('click', () => {
+    import('../tools/draw').then(m => {
+      if (m.getDrawingModeKind?.() === 'polygon') {
+        m.finishDrawingRoute();
+      } else if (!m.isDrawingMode()) {
+        m.startDrawingPolygon();
+      }
+    });
+  });
+
+  const addHoleBtn = document.getElementById('add-hole');
+  addHoleBtn?.addEventListener('click', () => {
+    import('../tools/draw').then(m => {
+      if (m.getDrawingModeKind?.() === 'hole') {
+        m.finishDrawingRoute();
+        return;
+      }
+
+      if (!m.isDrawingMode()) {
+        const route = store.getSelectedRoute();
+        if (!route || !isPolygonRoute(route)) {
+          alert('请先选择一条多边形');
+          return;
+        }
+        m.startDrawingHole(route.id);
       }
     });
   });
@@ -289,12 +320,15 @@ function handleAddNodeClick(e: L.LeafletMouseEvent): void {
 
   import('../routes/geometry').then(m => {
     const selectedPoint = store.selectedPoint;
-    const isStartSelected = selectedPoint &&
-      selectedPoint.routeId === route.id &&
-      selectedPoint.pointIdx === 0;
+    const isCurrentRouteSelection = selectedPoint && selectedPoint.routeId === route.id;
 
-    if (isStartSelected) {
-      m.prependNodeToRoute(route.id, e.latlng.lat, e.latlng.lng);
+    if (isCurrentRouteSelection) {
+      const ringIndex = selectedPoint.ringIndex ?? 0;
+      if (!isPolygonRoute(route) && selectedPoint.pointIdx === 0) {
+        m.prependNodeToRoute(route.id, e.latlng.lat, e.latlng.lng, ringIndex);
+      } else {
+        m.insertNodeAt(route.id, e.latlng.lat, e.latlng.lng, selectedPoint.pointIdx, ringIndex);
+      }
     } else {
       m.addNodeToRoute(route.id, e.latlng.lat, e.latlng.lng);
     }
@@ -404,12 +438,17 @@ export function deleteSelectedNode(): void {
     if (!currentSelected) return;
     if (
       currentSelected.routeId !== selectedAtTrigger.routeId ||
-      currentSelected.pointIdx !== selectedAtTrigger.pointIdx
+      currentSelected.pointIdx !== selectedAtTrigger.pointIdx ||
+      (currentSelected.ringIndex ?? 0) !== (selectedAtTrigger.ringIndex ?? 0)
     ) {
       return;
     }
 
-    m.deleteNodeFromRoute(selectedAtTrigger.routeId, selectedAtTrigger.pointIdx);
+    m.deleteNodeFromRoute(
+      selectedAtTrigger.routeId,
+      selectedAtTrigger.pointIdx,
+      selectedAtTrigger.ringIndex ?? 0
+    );
   });
 }
 
@@ -417,6 +456,10 @@ export function deleteSelectedNode(): void {
  * 合并航线对话框状态
  */
 let selectedMergeRouteId: string | null = null;
+
+function canMergeRoutes(routeA: NonNullable<ReturnType<typeof store.getSelectedRoute>>, routeB: typeof store.routes[number]): boolean {
+  return !isPolygonRoute(routeA) && !isPolygonRoute(routeB);
+}
 
 /**
  * 初始化合并对话框
@@ -451,6 +494,11 @@ function openMergeDialog(): void {
   const route = store.getSelectedRoute();
   if (!route) {
     alert('请先选择一条航线');
+    return;
+  }
+
+  if (isPolygonRoute(route)) {
+    alert('暂不支持多边形合并');
     return;
   }
 
@@ -500,6 +548,12 @@ function renderMergeRouteList(): void {
     item.className = 'merge-route-item';
     item.dataset.id = route.id;
 
+    const mergeable = selectedRoute ? canMergeRoutes(selectedRoute, route) : true;
+    if (!mergeable) {
+      item.classList.add('disabled');
+      item.title = '暂不支持多边形合并';
+    }
+
     const colorSpan = document.createElement('span');
     colorSpan.className = 'route-color';
     colorSpan.style.backgroundColor = route.color;
@@ -510,13 +564,14 @@ function renderMergeRouteList(): void {
 
     const pointsSpan = document.createElement('span');
     pointsSpan.className = 'route-points';
-    pointsSpan.textContent = route.points.length + ' 点';
+    pointsSpan.textContent = getRouteSummary(route);
 
     item.appendChild(colorSpan);
     item.appendChild(nameSpan);
     item.appendChild(pointsSpan);
 
     item.addEventListener('click', () => {
+      if (!mergeable) return;
       document.querySelectorAll('.merge-route-item').forEach(el => el.classList.remove('selected'));
       item.classList.add('selected');
       selectedMergeRouteId = route.id;
@@ -543,7 +598,7 @@ function confirmMerge(): void {
       updateRouteList();
       updatePropertiesPanel();
     } else {
-      alert('合并失败');
+      alert('合并失败，当前仅支持折线合并');
     }
   });
 }
@@ -665,6 +720,16 @@ function initializeRouteList(): void {
   updateRouteList();
 }
 
+function getRouteSummary(route: typeof store.routes[number]): string {
+  const vertexCount = getRouteVertexCount(route);
+  if (!isPolygonRoute(route)) {
+    return `${vertexCount} 点`;
+  }
+
+  const holeCount = route.holes?.length ?? 0;
+  return holeCount > 0 ? `${vertexCount} 点 · ${holeCount} 洞` : `${vertexCount} 点 · 多边形`;
+}
+
 /**
  * 更新航线列表显示
  */
@@ -696,9 +761,13 @@ export function updateRouteList(): void {
     nameSpan.className = 'route-name';
     nameSpan.textContent = route.name;
 
+    const typeSpan = document.createElement('span');
+    typeSpan.className = 'route-geometry-tag';
+    typeSpan.textContent = isPolygonRoute(route) ? 'Polygon' : 'Line';
+
     const pointsSpan = document.createElement('span');
     pointsSpan.className = 'route-points';
-    pointsSpan.textContent = route.points.length + ' 点';
+    pointsSpan.textContent = getRouteSummary(route);
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'route-item-btn delete';
@@ -718,6 +787,7 @@ export function updateRouteList(): void {
     item.appendChild(checkbox);
     item.appendChild(colorSpan);
     item.appendChild(nameSpan);
+    item.appendChild(typeSpan);
     item.appendChild(pointsSpan);
     item.appendChild(deleteBtn);
 
@@ -751,14 +821,31 @@ export function updateRouteList(): void {
  */
 function syncEndpointQuickControls(): void {
   const refs = getEndpointQuickControlRefs();
-  if (!refs) return;
+  const addHoleBtn = document.getElementById('add-hole') as HTMLButtonElement | null;
+  if (!refs) {
+    if (addHoleBtn) addHoleBtn.disabled = true;
+    return;
+  }
 
   const { controls, startBtn, endBtn } = refs;
   const route = store.getSelectedRoute();
   const isEditable = Boolean(route?.editable);
-  controls.hidden = !isEditable;
+  const polygonEditable = Boolean(route && route.editable && isPolygonRoute(route));
+  controls.hidden = !isEditable || Boolean(route && isPolygonRoute(route));
+  if (addHoleBtn) {
+    addHoleBtn.hidden = !route || !isPolygonRoute(route);
+    addHoleBtn.disabled = !polygonEditable;
+  }
 
   if (!isEditable || !route) {
+    startBtn.classList.remove('btn-active');
+    endBtn.classList.remove('btn-active');
+    startBtn.disabled = true;
+    endBtn.disabled = true;
+    return;
+  }
+
+  if (isPolygonRoute(route)) {
     startBtn.classList.remove('btn-active');
     endBtn.classList.remove('btn-active');
     startBtn.disabled = true;
@@ -791,19 +878,35 @@ export function updatePropertiesPanel(): void {
   const point = store.selectedPoint;
 
   const routeNameEl = document.getElementById('prop-route-name');
+  const routeTypeEl = document.getElementById('prop-route-type');
   const routePointsEl = document.getElementById('prop-route-points');
+  const routeHolesEl = document.getElementById('prop-route-holes');
   const routeLengthEl = document.getElementById('prop-route-length');
+  const routeAreaEl = document.getElementById('prop-route-area');
   const routeStatusEl = document.getElementById('prop-route-status');
+  const routeLengthLabelEl = document.getElementById('prop-route-length-label');
 
   if (route) {
     if (routeNameEl) routeNameEl.textContent = route.name;
-    if (routePointsEl) routePointsEl.textContent = route.points.length.toString();
+    if (routeTypeEl) routeTypeEl.textContent = isPolygonRoute(route) ? '多边形' : '折线';
+    if (routePointsEl) routePointsEl.textContent = getRouteVertexCount(route).toString();
+    if (routeHolesEl) routeHolesEl.textContent = isPolygonRoute(route) ? String(route.holes?.length ?? 0) : '-';
+    if (routeLengthLabelEl) routeLengthLabelEl.textContent = isPolygonRoute(route) ? '周长' : '长度';
     if (routeLengthEl) routeLengthEl.textContent = calculateTotalLength(route);
+    if (routeAreaEl) {
+      routeAreaEl.textContent = isPolygonRoute(route)
+        ? formatArea(calculatePolygonArea(route.points, route.holes ?? []))
+        : '-';
+    }
     if (routeStatusEl) routeStatusEl.textContent = route.editable ? '可编辑' : '只读';
   } else {
     if (routeNameEl) routeNameEl.textContent = '-';
+    if (routeTypeEl) routeTypeEl.textContent = '-';
     if (routePointsEl) routePointsEl.textContent = '-';
+    if (routeHolesEl) routeHolesEl.textContent = '-';
+    if (routeLengthLabelEl) routeLengthLabelEl.textContent = '长度';
     if (routeLengthEl) routeLengthEl.textContent = '-';
+    if (routeAreaEl) routeAreaEl.textContent = '-';
     if (routeStatusEl) routeStatusEl.textContent = '-';
   }
 
@@ -812,9 +915,14 @@ export function updatePropertiesPanel(): void {
   const pointLonEl = document.getElementById('prop-point-lon');
 
   if (point) {
-    const p = store.getRouteById(point.routeId)?.points[point.pointIdx];
+    const selectedRoute = store.getRouteById(point.routeId);
+    const p = selectedRoute ? getPointsForRing(selectedRoute, point.ringIndex ?? 0)[point.pointIdx] : undefined;
     if (p && typeof p.lat === 'number' && typeof p.lon === 'number') {
-      if (pointIndexEl) pointIndexEl.textContent = point.pointIdx.toString();
+      if (pointIndexEl) {
+        pointIndexEl.textContent = point.ringIndex !== undefined
+          ? `环 ${point.ringIndex + 1} / 点 ${point.pointIdx + 1}`
+          : point.pointIdx.toString();
+      }
       if (pointLatEl) pointLatEl.textContent = p.lat.toFixed(6);
       if (pointLonEl) pointLonEl.textContent = p.lon.toFixed(6);
     } else {
@@ -834,25 +942,26 @@ export function updatePropertiesPanel(): void {
 /**
  * 计算航线总长度
  */
-function calculateTotalLength(route: { points: { lat: number; lon: number }[] }): string {
-  if (route.points.length < 2) return '0 m';
+function formatDistance(totalMeters: number): string {
+  if (totalMeters < 1000) return totalMeters.toFixed(1) + ' m';
+  return (totalMeters / 1000).toFixed(2) + ' km';
+}
 
-  let total = 0;
-  for (let i = 1; i < route.points.length; i++) {
-    const p1 = route.points[i - 1];
-    const p2 = route.points[i];
-    const R = 6371000;
-    const dLat = (p2.lat - p1.lat) * Math.PI / 180;
-    const dLon = (p2.lon - p1.lon) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 +
-      Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) *
-      Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    total += R * c;
+function formatArea(areaSqm: number): string {
+  if (areaSqm < 1_000_000) return areaSqm.toFixed(0) + ' m²';
+  return (areaSqm / 1_000_000).toFixed(2) + ' km²';
+}
+
+function calculateRouteBoundaryLength(route: { points: { lat: number; lon: number }[]; holes?: { lat: number; lon: number }[][]; geometryType?: string }): number {
+  if (!isPolygonRoute(route as never)) {
+    return calculateLineLength(route.points);
   }
 
-  if (total < 1000) return total.toFixed(1) + ' m';
-  return (total / 1000).toFixed(2) + ' km';
+  return calculateRingPerimeter(route.points) + (route.holes ?? []).reduce((sum, ring) => sum + calculateRingPerimeter(ring), 0);
+}
+
+function calculateTotalLength(route: { points: { lat: number; lon: number }[]; holes?: { lat: number; lon: number }[][]; geometryType?: string }): string {
+  return formatDistance(calculateRouteBoundaryLength(route));
 }
 
 /**

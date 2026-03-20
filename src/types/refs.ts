@@ -7,6 +7,8 @@
  */
 export interface SnapRef {
   routeId: string;
+  /** Ring index for polygons (0 = outer ring, 1+ = holes) */
+  ringIndex?: number;
   /** Segment index (the index of the starting point of the segment) */
   segIdx: number;
   /** Position within the segment (0-1, 0 = at segIdx point, 1 = at segIdx+1 point) */

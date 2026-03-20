@@ -213,4 +213,31 @@ describe('routes/geometry endpoint controls', () => {
     expect(deleted).toBe(false);
     expect(route.points.length).toBe(2);
   });
+
+  it('should remove a hole when deleting from a minimal polygon hole ring', async () => {
+    const { deleteNodeFromRoute } = await import('./geometry');
+
+    const route = createEditableRoute('poly-hole', [
+      { lat: 0, lon: 0 },
+      { lat: 0, lon: 1 },
+      { lat: 1, lon: 1 },
+      { lat: 1, lon: 0 },
+    ]);
+    route.geometryType = 'polygon';
+    route.holes = [[
+      { lat: 0.2, lon: 0.2 },
+      { lat: 0.2, lon: 0.4 },
+      { lat: 0.4, lon: 0.3 },
+    ]];
+
+    store.routes = [route];
+    store.selectedRouteId = route.id;
+    store.selectedPoint = { routeId: route.id, pointIdx: 1, ringIndex: 1 };
+
+    const deleted = deleteNodeFromRoute(route.id, 1, 1);
+
+    expect(deleted).toBe(true);
+    expect(route.holes).toEqual([]);
+    expect(store.selectedPoint).toBeNull();
+  });
 });

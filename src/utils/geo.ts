@@ -24,6 +24,40 @@ export function haversineDistance(p1: Point, p2: Point): number {
   return R * c;
 }
 
+export function pointsEqual(a: Point, b: Point): boolean {
+  return a.lat === b.lat && a.lon === b.lon;
+}
+
+export function closeRing(points: Point[]): Point[] {
+  if (points.length === 0) return [];
+
+  const closed = points.map((point) => ({ ...point }));
+  const first = closed[0];
+  const last = closed[closed.length - 1];
+
+  if (!pointsEqual(first, last)) {
+    closed.push({ ...first });
+  }
+
+  return closed;
+}
+
+export function stripClosingPoint(points: Point[]): Point[] {
+  if (points.length <= 1) {
+    return points.map((point) => ({ ...point }));
+  }
+
+  const stripped = points.map((point) => ({ ...point }));
+  const first = stripped[0];
+  const last = stripped[stripped.length - 1];
+
+  if (pointsEqual(first, last)) {
+    stripped.pop();
+  }
+
+  return stripped;
+}
+
 function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
 }
@@ -277,6 +311,49 @@ export function bearingToDirection(bearing: number): string {
   return directions[index];
 }
 
+export function calculateLineLength(points: Point[]): number {
+  if (points.length < 2) return 0;
+
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    total += haversineDistance(points[i - 1], points[i]);
+  }
+
+  return total;
+}
+
+export function calculateRingPerimeter(points: Point[]): number {
+  if (points.length < 2) return 0;
+
+  const closed = closeRing(points);
+  return calculateLineLength(closed);
+}
+
+export function sphericalPolygonArea(ring: Point[]): number {
+  if (ring.length < 3) return 0;
+
+  const closed = closeRing(ring);
+  if (closed.length < 4) return 0;
+
+  const earthRadius = 6378137;
+  let total = 0;
+
+  for (let i = 0; i < closed.length - 1; i++) {
+    const p1 = closed[i];
+    const p2 = closed[i + 1];
+    const lonDelta = toRad(p2.lon - p1.lon);
+
+    total += lonDelta * (2 + Math.sin(toRad(p1.lat)) + Math.sin(toRad(p2.lat)));
+  }
+
+  return Math.abs((total * earthRadius * earthRadius) / 2);
+}
+
+export function calculatePolygonArea(outerRing: Point[], holes: Point[][] = []): number {
+  const holeArea = holes.reduce((sum, ring) => sum + sphericalPolygonArea(ring), 0);
+  return Math.max(0, sphericalPolygonArea(outerRing) - holeArea);
+}
+
 /**
  * 等距重采样 - 按固定距离间隔插入新点
  * 用于在简化前增加冗余点，保证关键转折不被丢失
@@ -322,5 +399,13 @@ export function equidistantResample(points: Point[], intervalMeters: number = 10
   }
 
   return result;
+}
+
+export function equidistantResampleClosed(points: Point[], intervalMeters: number = 10): Point[] {
+  if (points.length < 3) {
+    return closeRing(points);
+  }
+
+  return equidistantResample(closeRing(points), intervalMeters);
 }
 

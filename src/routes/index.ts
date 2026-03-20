@@ -2,7 +2,7 @@
  * 航线管理模块
  */
 
-import { store, Point, Route } from '../state/store';
+import { store, Point, Route, GeometryType, getRouteGeometryType } from '../state/store';
 import { updateRouteDisplayGeometry, setUIRefreshFunctions, refreshRoutesList, updatePropertiesPanel } from './geometry';
 
 // 导出 UI 刷新函数供其他模块使用
@@ -11,8 +11,15 @@ export { setUIRefreshFunctions };
 /**
  * 添加航线
  */
-export function addRoute(name: string, points: Point[]): Route {
-  const route = store.addRoute(name, points);
+export function addRoute(
+  name: string,
+  points: Point[],
+  options: {
+    geometryType?: GeometryType;
+    holes?: Point[][];
+  } = {}
+): Route {
+  const route = store.addRoute(name, points, options);
   // 初始化热力图选项
   import('../tools/heatmap')
     .then(m => m.initRouteHeatOptions(route))
@@ -81,6 +88,13 @@ export function mergeRoutes(routeId1: string, routeId2: string): Route | null {
 
   if (route1.id === route2.id) {
     console.error('不能合并同一条航线');
+    return null;
+  }
+
+  const geometryType1 = getRouteGeometryType(route1);
+  const geometryType2 = getRouteGeometryType(route2);
+  if (geometryType1 !== 'polyline' || geometryType2 !== 'polyline') {
+    console.error('当前仅支持合并折线，暂不支持多边形合并');
     return null;
   }
 

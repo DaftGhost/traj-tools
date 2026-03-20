@@ -113,6 +113,24 @@ describe('utils/geo', () => {
     });
   });
 
+  describe('equidistantResampleClosed', () => {
+    it('should keep closed rings closed after resampling', async () => {
+      const { equidistantResampleClosed } = await import('./geo');
+
+      const ring: Point[] = [
+        { lat: 0, lon: 0 },
+        { lat: 0, lon: 0.01 },
+        { lat: 0.01, lon: 0.01 },
+        { lat: 0.01, lon: 0 },
+      ];
+
+      const result = equidistantResampleClosed(ring, 200);
+
+      expect(result.length).toBeGreaterThanOrEqual(5);
+      expect(result[0]).toEqual(result[result.length - 1]);
+    });
+  });
+
   describe('haversineDistance', () => {
     it('should handle antimeridian crossing', async () => {
       const { haversineDistance } = await import('./geo');
@@ -158,6 +176,47 @@ describe('utils/geo', () => {
       expect(bearingToDirection(90)).toBe('E');
       expect(bearingToDirection(180)).toBe('S');
       expect(bearingToDirection(270)).toBe('W');
+    });
+  });
+
+  describe('polygon area helpers', () => {
+    it('should calculate positive area for a simple polygon ring', async () => {
+      const { sphericalPolygonArea } = await import('./geo');
+
+      const ring: Point[] = [
+        { lat: 0, lon: 0 },
+        { lat: 0, lon: 0.01 },
+        { lat: 0.01, lon: 0.01 },
+        { lat: 0.01, lon: 0 },
+      ];
+
+      const area = sphericalPolygonArea(ring);
+
+      expect(area).toBeGreaterThan(1_000_000);
+      expect(area).toBeLessThan(1_500_000);
+    });
+
+    it('should subtract holes from polygon area', async () => {
+      const { calculatePolygonArea } = await import('./geo');
+
+      const outer: Point[] = [
+        { lat: 0, lon: 0 },
+        { lat: 0, lon: 0.02 },
+        { lat: 0.02, lon: 0.02 },
+        { lat: 0.02, lon: 0 },
+      ];
+      const hole: Point[] = [
+        { lat: 0.005, lon: 0.005 },
+        { lat: 0.005, lon: 0.015 },
+        { lat: 0.015, lon: 0.015 },
+        { lat: 0.015, lon: 0.005 },
+      ];
+
+      const area = calculatePolygonArea(outer, [hole]);
+      const outerOnly = calculatePolygonArea(outer);
+
+      expect(area).toBeGreaterThan(0);
+      expect(area).toBeLessThan(outerOnly);
     });
   });
 
