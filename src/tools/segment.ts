@@ -5,10 +5,10 @@
 
 import * as L from 'leaflet';
 import { store, Point, getPointsForRing, isPolygonRoute } from '../state/store';
-import { haversineDistance, pointsEqual } from '../utils/geo';
+import { pointsEqual } from '../utils/geo';
 import { snapToRoutes, pointToSegmentDistance, getSnapGeometry } from '../utils/snap';
 import type { SnapRef } from '../types/refs';
-import { getRouteSegment, updateRouteDistanceCache } from '../routes/geometry';
+import { getRouteSegment } from '../routes/geometry';
 import { setStatus } from '../utils/uiStatus';
 
 let segmentExportMode = false;
@@ -154,7 +154,7 @@ function updateSegmentStatus(): void {
 export function addSegmentPoint(latlng: L.LatLng): void {
   if (!segmentExportMode) return;
 
-  const snapped = snapToRoutes(latlng);
+  const snapped = snapToRoutes(latlng, false, true);
   const point: SegmentPoint = {
     lat: snapped?.lat ?? latlng.lat,
     lon: snapped?.lon ?? latlng.lng,
@@ -187,7 +187,7 @@ export function addSegmentPoint(latlng: L.LatLng): void {
 function updateSegmentHover(latlng: L.LatLng): void {
   if (!segmentExportMode) return;
 
-  const snapped = snapToRoutes(latlng);
+  const snapped = snapToRoutes(latlng, false, true);
   hoverPoint = {
     lat: snapped?.lat ?? latlng.lat,
     lon: snapped?.lon ?? latlng.lng,
@@ -365,30 +365,6 @@ function interpolateRefPoint(route: { points: Point[] }, ref: SnapRef): Point | 
   };
 }
 
-function getRingCache(route: { points: Point[]; holes?: Point[][] }, ringIndex: number): number[] | null {
-  const typedRoute = route as never;
-  if (!(typedRoute as { _distCache?: number[] })._distCache) {
-    updateRouteDistanceCache(typedRoute);
-  }
-
-  const distCache = (typedRoute as { _distCache?: number[] })._distCache;
-  const holeDistCaches = (typedRoute as { _holeDistCaches?: number[][] })._holeDistCaches;
-  return ringIndex === 0 ? distCache ?? null : holeDistCaches?.[ringIndex - 1] ?? null;
-}
-
-function getRefPositionOnRing(route: { points: Point[]; holes?: Point[][] }, ref: SnapRef): number | null {
-  const ringIndex = ref.ringIndex ?? 0;
-  const ring = getPointsForRing(route as never, ringIndex);
-  const cache = getRingCache(route, ringIndex);
-  const segment = getRouteSegment(route as never, ref.segIdx, ringIndex);
-
-  if (!cache || !segment || ref.segIdx < 0 || ref.segIdx >= ring.length) {
-    return null;
-  }
-
-  return (cache[ref.segIdx] ?? 0) + haversineDistance(segment.start, segment.end) * ref.segFrac;
-}
-
 function pushUniquePoint(points: Point[], point: Point): void {
   if (points.length === 0 || !pointsEqual(points[points.length - 1], point)) {
     points.push({ ...point });
@@ -466,21 +442,7 @@ export function extractRouteSegment(route: { id: string; points: Point[]; holes?
     if (ring.length < 2) return null;
 
     if (isPolygonRoute(route as never)) {
-      const cache = getRingCache(route, ringIndex);
-      const startPos = getRefPositionOnRing(route, start.ref);
-      const endPos = getRefPositionOnRing(route, end.ref);
-      const perimeter = cache?.[ring.length];
-
-      if (startPos == null || endPos == null || !perimeter) {
-        return null;
-      }
-
-      const forwardDistance = endPos >= startPos ? endPos - startPos : perimeter - (startPos - endPos);
-      const backwardDistance = perimeter - forwardDistance;
-
-      return forwardDistance <= backwardDistance
-        ? extractClosedRingArc(ring, start.ref, end.ref)
-        : extractClosedRingArc(ring, end.ref, start.ref);
+      return extractClosedRingArc(ring, start.ref, end.ref);
     }
 
     return extractOpenPathSegment(ring, start.ref, end.ref);
@@ -520,60 +482,6 @@ export function extractRouteSegment(route: { id: string; points: Point[]; holes?
   }
 
   return route.points.map(p => ({ ...p }));
-}
-
-export function exportRouteSegments(): void {
-  if (!segmentExportMode || !startPoint || !endPoint) {
-    setStatus('请先选择起点和终点');
-    return;
-  }
-
-  if (foundRoutes.length === 0) {
-    setStatus('没有找到可导出的航线片段');
-    return;
-  }
-
-  const rows: Record<string, string | number>[] = [];
-
-  foundRoutes.forEach((routeId) => {
-    const route = store.getRouteById(routeId);
-    if (!route || !route.visible) return;
-
-    const points = extractRouteSegment(route, startPoint!, endPoint!);
-    if (!points || points.length === 0) return;
-
-    points.forEach((p, idx) => {
-      rows.push({
-        '航线名称': route.name,
-        '序号': idx + 1,
-        '纬度': Number(p.lat).toFixed(6),
-        '经度': Number(p.lon).toFixed(6)
-      });
-    });
-  });
-
-  if (rows.length === 0) {
-    setStatus('没有可导出的数据');
-    return;
-  }
-
-  const headers = Object.keys(rows[0]);
-  const csvContent = [
-    headers.join(','),
-    ...rows.map(row => headers.map(h => row[h]).join(','))
-  ].join('\n');
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  link.setAttribute('href', url);
-  link.setAttribute('download', '航段_' + new Date().toISOString().slice(0, 10) + '.csv');
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-
-  setStatus('已导出 ' + rows.length + ' 个点到 CSV 文件');
 }
 
 export function isSegmentExportMode(): boolean {

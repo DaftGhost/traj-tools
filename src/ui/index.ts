@@ -622,6 +622,22 @@ function initializeMeasureControls(): void {
 /**
  * 初始化导出控件
  */
+function updateExportBidirectionalControlState(): void {
+  const checkbox = document.getElementById('export-bidirectional') as HTMLInputElement | null;
+  const row = document.getElementById('export-bidirectional-row');
+  if (!checkbox) return;
+
+  const selectedRoute = store.getSelectedRoute();
+  const hasVisiblePolyline = store.routes.some((route) => route.visible && !isPolygonRoute(route));
+  const hasSelectedPolyline = Boolean(selectedRoute && !isPolygonRoute(selectedRoute));
+  const enabled = hasVisiblePolyline || hasSelectedPolyline;
+  const title = enabled ? '仅对折线导出生效' : '当前没有可应用双向导出的折线';
+
+  checkbox.disabled = !enabled;
+  checkbox.title = title;
+  row?.setAttribute('title', title);
+}
+
 function initializeExportControls(): void {
   const exportBtn = document.getElementById('export-btn');
   const segmentBtn = document.getElementById('export-segment');
@@ -648,6 +664,8 @@ function initializeExportControls(): void {
     }
     store.segmentExport.searchRadius = parseInt(value);
   });
+
+  updateExportBidirectionalControlState();
 }
 
 /**
@@ -805,7 +823,10 @@ export function updateRouteList(): void {
     checkbox.addEventListener('change', () => {
       const id = item.dataset.id;
       if (id) {
-        import('../routes/index').then(m => m.toggleRouteVisibility(id));
+        import('../routes/index').then(m => {
+          m.toggleRouteVisibility(id);
+          updateExportBidirectionalControlState();
+        });
       }
     });
 
@@ -814,6 +835,7 @@ export function updateRouteList(): void {
 
   const countEl = document.querySelector('.route-count');
   if (countEl) countEl.textContent = '(' + store.routes.length + ')';
+  updateExportBidirectionalControlState();
 }
 
 /**
@@ -937,6 +959,7 @@ export function updatePropertiesPanel(): void {
   }
 
   syncEndpointQuickControls();
+  updateExportBidirectionalControlState();
 }
 
 /**

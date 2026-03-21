@@ -73,7 +73,7 @@ export function pointToSegmentDistance(lat: number, lon: number, segStart: Point
 /**
  * Get route segments for snapping
  */
-export function getSnapGeometry(routeId?: string): Array<{ start: Point; end: Point; routeId: string; pointIdx: number; ringIndex?: number }> {
+export function getSnapGeometry(routeId?: string, useOriginal: boolean = false): Array<{ start: Point; end: Point; routeId: string; pointIdx: number; ringIndex?: number }> {
   const routes = routeId
     ? [store.getRouteById(routeId)].filter((r): r is NonNullable<typeof r> => r != null && r.visible)
     : store.routes.filter(r => r.visible);
@@ -81,7 +81,7 @@ export function getSnapGeometry(routeId?: string): Array<{ start: Point; end: Po
   const segments: Array<{ start: Point; end: Point; routeId: string; pointIdx: number; ringIndex?: number }> = [];
 
   for (const route of routes) {
-    const rings = route.editable
+    const rings = useOriginal || route.editable
       ? [route.points, ...(route.holes ?? [])]
       : [route._display?.simplified ?? route.points, ...(route._display?.holes ?? route.holes ?? [])];
     const closed = isPolygonRoute(route);
@@ -149,12 +149,12 @@ export function findNearestVertex(
 /**
  * Snap to nearest route point or segment
  */
-export function snapToRoutes(latlng: L.LatLng, snapSelectedOnly: boolean = false): SnapResult | null {
+export function snapToRoutes(latlng: L.LatLng, snapSelectedOnly: boolean = false, useOriginal: boolean = false): SnapResult | null {
   if (!store.map) return null;
 
   const target: Point = { lat: latlng.lat, lon: latlng.lng };
   const selectedRouteId = snapSelectedOnly ? store.selectedRouteId || undefined : undefined;
-  const snapGeometry = getSnapGeometry(selectedRouteId);
+  const snapGeometry = getSnapGeometry(selectedRouteId, useOriginal);
 
   if (snapGeometry.length === 0) return null;
 

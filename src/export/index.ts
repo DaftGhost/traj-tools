@@ -85,6 +85,36 @@ function createLineGeoJSONData(points: Point[], properties: Record<string, unkno
   };
 }
 
+function createPolygonSegmentGeoJSONData(points: Point[], properties: Record<string, unknown> = {}): GeoJSONFeatureCollection {
+  const ring = closeRing(points);
+
+  // A cut-down polygon can be just one edge; duplicate the end vertex so the ring
+  // still has the minimum 4 positions required by GeoJSON.
+  if (ring.length === 3) {
+    ring.splice(2, 0, { ...ring[1] });
+  }
+
+  const polygon: GeoJSONPolygon = {
+    type: 'Polygon',
+    coordinates: [ring.map((point) => [point.lon, point.lat] as [number, number])],
+  };
+
+  const feature: GeoJSONFeature = {
+    type: 'Feature',
+    geometry: polygon,
+    properties: {
+      pointCount: points.length,
+      geometryType: 'polygon',
+      ...properties,
+    }
+  };
+
+  return {
+    type: 'FeatureCollection',
+    features: [feature]
+  };
+}
+
 /**
  * 生成GeoJSON数据
  */
@@ -136,14 +166,26 @@ function downloadGeoJSON(data: GeoJSONFeatureCollection, filename: string): void
   URL.revokeObjectURL(url);
 }
 
+function buildExportSuffix(prefix: string = ''): string {
+  return prefix ? '_' + prefix : '';
+}
+
+function exportSingleCsv(points: Point[], baseName: string, prefix: string = ''): void {
+  const csvData = createCsvData(points);
+  downloadCsv(csvData, `${baseName}${buildExportSuffix(prefix)}.csv`);
+}
+
+function exportSingleGeoJSON(points: Point[], baseName: string, prefix: string = '', properties: Record<string, unknown> = {}): void {
+  const geojsonData = createLineGeoJSONData(points, properties);
+  downloadGeoJSON(geojsonData, `${baseName}${buildExportSuffix(prefix)}.geojson`);
+}
+
 /**
  * 导出正序和逆序CSV文件
  */
 function exportForwardReverseCsv(points: Point[], baseName: string, prefix: string = ''): void {
   if (points.length < 2) {
-    const csvData = createCsvData(points);
-    const suffix = prefix ? '_' + prefix : '';
-    downloadCsv(csvData, baseName + suffix + '.csv');
+    exportSingleCsv(points, baseName, prefix);
     return;
   }
 
@@ -177,9 +219,7 @@ function exportForwardReverseCsv(points: Point[], baseName: string, prefix: stri
  */
 function exportForwardReverseGeoJSON(points: Point[], baseName: string, prefix: string = ''): void {
   if (points.length < 2) {
-    const geojsonData = createLineGeoJSONData(points);
-    const suffix = prefix ? '_' + prefix : '';
-    downloadGeoJSON(geojsonData, baseName + suffix + '.geojson');
+    exportSingleGeoJSON(points, baseName, prefix);
     return;
   }
 
@@ -209,8 +249,8 @@ function exportForwardReverseGeoJSON(points: Point[], baseName: string, prefix: 
 }
 
 function exportRouteCsv(route: Route): void {
-  if (isPolygonRoute(route)) {
-    downloadCsv(createCsvData(route.points), route.name + '.csv');
+  if (!isBidirectionalExport()) {
+    exportSingleCsv(route.points, route.name);
     return;
   }
 
@@ -218,7 +258,7 @@ function exportRouteCsv(route: Route): void {
 }
 
 function exportRouteGeoJSON(route: Route): void {
-  if (isPolygonRoute(route)) {
+  if (isPolygonRoute(route) || !isBidirectionalExport()) {
     downloadGeoJSON(createGeoJSONData(route), route.name + '.geojson');
     return;
   }
@@ -234,6 +274,11 @@ function getExportFormat(): 'csv' | 'geojson' {
   return (select?.value as 'csv' | 'geojson') || 'csv';
 }
 
+function isBidirectionalExport(): boolean {
+  const checkbox = document.getElementById('export-bidirectional') as HTMLInputElement | null;
+  return checkbox?.checked ?? true;
+}
+
 export function exportData(): void {
   const selectedRoutes = store.routes.filter(r => r.visible);
 
@@ -245,7 +290,7 @@ export function exportData(): void {
   const format = getExportFormat();
 
   for (const route of selectedRoutes) {
-    if (format === 'geojson') {
+    if (format === 'geojson' || isPolygonRoute(route)) {
       exportRouteGeoJSON(route);
     } else {
       exportRouteCsv(route);
@@ -265,8 +310,8 @@ export function exportSegment(): void {
     return;
   }
 
-  const startSnap = snapToRoutes(L.latLng(store.segmentExport.startPoint.lat, store.segmentExport.startPoint.lon), true);
-  const endSnap = snapToRoutes(L.latLng(store.segmentExport.endPoint.lat, store.segmentExport.endPoint.lon), true);
+  const startSnap = snapToRoutes(L.latLng(store.segmentExport.startPoint.lat, store.segmentExport.startPoint.lon), true, true);
+  const endSnap = snapToRoutes(L.latLng(store.segmentExport.endPoint.lat, store.segmentExport.endPoint.lon), true, true);
 
   let segmentPoints: Point[] | null = null;
   if (startSnap?.ref && endSnap?.ref) {
@@ -287,21 +332,23 @@ export function exportSegment(): void {
     ? `${Math.min(startSnap.ref.segIdx, endSnap.ref.segIdx) + 1}-${Math.max(startSnap.ref.segIdx, endSnap.ref.segIdx) + 1}`
     : 'segment';
 
-  if (format === 'geojson') {
+  if (format === 'geojson' || isPolygonRoute(route)) {
     if (isPolygonRoute(route)) {
       downloadGeoJSON(
-        createLineGeoJSONData(segmentPoints, {
+        createPolygonSegmentGeoJSONData(segmentPoints, {
           sourceRoute: route.name,
           segment: true,
         }),
         `${route.name}_${prefix}.geojson`
       );
-    } else {
+    } else if (isBidirectionalExport()) {
       exportForwardReverseGeoJSON(segmentPoints, route.name, prefix);
+    } else {
+      exportSingleGeoJSON(segmentPoints, route.name, prefix);
     }
-  } else if (isPolygonRoute(route)) {
-    downloadCsv(createCsvData(segmentPoints), `${route.name}_${prefix}.csv`);
-  } else {
+  } else if (isBidirectionalExport()) {
     exportForwardReverseCsv(segmentPoints, route.name, prefix);
+  } else {
+    exportSingleCsv(segmentPoints, route.name, prefix);
   }
 }

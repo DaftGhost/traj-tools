@@ -26,6 +26,25 @@ function createRoute(id: string, editable = true): Route {
   };
 }
 
+function createPolygonRoute(id: string, editable = true): Route {
+  return {
+    id,
+    name: `Polygon-${id}`,
+    points: [
+      { lat: 30.0, lon: 120.0 },
+      { lat: 30.0, lon: 120.1 },
+      { lat: 30.1, lon: 120.1 },
+      { lat: 30.1, lon: 120.0 },
+    ],
+    geometryType: 'polygon',
+    holes: [],
+    color: '#1E88E5',
+    editable,
+    visible: true,
+    selected: true,
+  };
+}
+
 function appendElement(tag: string, id: string, className?: string): void {
   const el = document.createElement(tag);
   el.id = id;
@@ -49,6 +68,15 @@ function mountDomForUiRefresh(): void {
   appendElement('div', 'endpoint-quick-controls');
   appendElement('button', 'select-start-endpoint');
   appendElement('button', 'select-end-endpoint');
+
+  const exportRow = document.createElement('label');
+  exportRow.id = 'export-bidirectional-row';
+  const exportCheckbox = document.createElement('input');
+  exportCheckbox.id = 'export-bidirectional';
+  exportCheckbox.type = 'checkbox';
+  exportCheckbox.checked = true;
+  exportRow.appendChild(exportCheckbox);
+  document.body.appendChild(exportRow);
 }
 
 describe('ui/index deleteSelectedNode', () => {
@@ -94,5 +122,48 @@ describe('ui/index deleteSelectedNode', () => {
 
     expect(routeA.points.length).toBe(3);
     expect(routeB.points.length).toBe(3);
+  });
+});
+
+describe('ui/index export bidirectional control', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    document.body.textContent = '';
+    mountDomForUiRefresh();
+
+    store.routes = [];
+    store.selectedRouteId = null;
+    store.selectedPoint = null;
+    store.clearEditHandle();
+    store.map = null;
+  });
+
+  it('disables bidirectional export when only polygons are available', async () => {
+    const polygon = createPolygonRoute('polygon-a');
+    const { store: uiStore } = await import('../state/store');
+    const ui = await import('./index');
+    uiStore.routes = [polygon];
+    uiStore.selectedRouteId = polygon.id;
+    ui.updateRouteList();
+    ui.updatePropertiesPanel();
+
+    const checkbox = document.getElementById('export-bidirectional') as HTMLInputElement;
+    expect(checkbox.disabled).toBe(true);
+  });
+
+  it('keeps bidirectional export enabled when a visible linestring exists', async () => {
+    const polygon = createPolygonRoute('polygon-a');
+    const line = createRoute('line-a');
+    polygon.selected = true;
+    line.selected = false;
+    const { store: uiStore } = await import('../state/store');
+    const ui = await import('./index');
+    uiStore.routes = [polygon, line];
+    uiStore.selectedRouteId = polygon.id;
+    ui.updateRouteList();
+    ui.updatePropertiesPanel();
+
+    const checkbox = document.getElementById('export-bidirectional') as HTMLInputElement;
+    expect(checkbox.disabled).toBe(false);
   });
 });

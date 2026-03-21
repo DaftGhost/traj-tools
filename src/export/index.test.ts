@@ -1,9 +1,145 @@
 /**
  * 导出模块测试
+ * @vitest-environment jsdom
  */
 
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { store, type Route } from '../state/store';
 import { swapLeftRight } from '../utils/helpers';
+import * as snapUtils from '../utils/snap';
+import { exportData, exportSegment } from './index';
+import { extractRouteSegment } from '../tools/segment';
+import type { SnapRef } from '../types/refs';
+
+function createPolylineRoute(name: string): Route {
+  return {
+    id: name,
+    name,
+    points: [
+      { lat: 30.0, lon: 120.0 },
+      { lat: 30.1, lon: 120.0 },
+    ],
+    geometryType: 'polyline',
+    color: '#1E88E5',
+    editable: false,
+    visible: true,
+    selected: false,
+  };
+}
+
+function createPolygonRoute(name: string): Route {
+  return {
+    id: name,
+    name,
+    points: [
+      { lat: 30.0, lon: 120.0 },
+      { lat: 30.0, lon: 120.1 },
+      { lat: 30.1, lon: 120.1 },
+      { lat: 30.1, lon: 120.0 },
+    ],
+    geometryType: 'polygon',
+    holes: [],
+    color: '#1E88E5',
+    editable: false,
+    visible: true,
+    selected: false,
+  };
+}
+
+function mountExportDom({ format = 'csv', bidirectional = true }: { format?: 'csv' | 'geojson'; bidirectional?: boolean } = {}): void {
+  document.body.innerHTML = `
+    <select id="export-format">
+      <option value="csv">CSV格式</option>
+      <option value="geojson">GeoJSON格式</option>
+    </select>
+    <input id="export-bidirectional" type="checkbox" />
+  `;
+
+  (document.getElementById('export-format') as unknown as HTMLSelectElement).value = format;
+  (document.getElementById('export-bidirectional') as unknown as HTMLInputElement).checked = bidirectional;
+}
+
+function readBlobAsText(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(blob);
+  });
+}
+
+describe('exportData bidirectional option', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    store.routes = [];
+    store.selectedRouteId = null;
+    store.selectedPoint = null;
+    store.segmentExport.startPoint = null;
+    store.segmentExport.endPoint = null;
+    store.clearEditHandle();
+    Object.assign(URL, {
+      createObjectURL: vi.fn(() => 'blob:test'),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.stubGlobal('alert', vi.fn());
+  });
+
+  it('exports forward and reverse files for visible linestrings when bidirectional export is enabled', () => {
+    mountExportDom({ format: 'csv', bidirectional: true });
+    store.routes = [createPolylineRoute('route')];
+
+    const downloads: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function(this: HTMLAnchorElement) {
+      downloads.push(this.download);
+    });
+
+    exportData();
+
+    expect(downloads).toEqual(['S_N_route.csv', 'N_S_route.csv']);
+  });
+
+  it('exports a single file for visible linestrings when bidirectional export is disabled', () => {
+    mountExportDom({ format: 'csv', bidirectional: false });
+    store.routes = [createPolylineRoute('route')];
+
+    const downloads: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function(this: HTMLAnchorElement) {
+      downloads.push(this.download);
+    });
+
+    exportData();
+
+    expect(downloads).toEqual(['route.csv']);
+  });
+
+  it('exports polygons as a single file regardless of the bidirectional option', () => {
+    mountExportDom({ format: 'geojson', bidirectional: true });
+    store.routes = [createPolygonRoute('area')];
+
+    const downloads: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function(this: HTMLAnchorElement) {
+      downloads.push(this.download);
+    });
+
+    exportData();
+
+    expect(downloads).toEqual(['area.geojson']);
+  });
+
+  it('exports polygons as GeoJSON even when CSV format is selected', () => {
+    mountExportDom({ format: 'csv', bidirectional: true });
+    store.routes = [createPolygonRoute('area')];
+
+    const downloads: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function(this: HTMLAnchorElement) {
+      downloads.push(this.download);
+    });
+
+    exportData();
+
+    expect(downloads).toEqual(['area.geojson']);
+  });
+});
 
 // Test the swapLeftRight function is working correctly in export context
 describe('Export with left/right swapping', () => {
@@ -37,6 +173,127 @@ describe('Export with left/right swapping', () => {
   it('should handle empty strings and prefixes', () => {
     expect(swapLeftRight('')).toBe('');
     expect(swapLeftRight('1-100')).toBe('1-100');
+  });
+});
+
+describe('polygon segment extraction (cut-down export)', () => {
+  const polygonRoute: Route = {
+    id: 'poly',
+    name: 'poly',
+    points: [
+      { lat: 30.0, lon: 120.0 },
+      { lat: 30.0, lon: 120.1 },
+      { lat: 30.1, lon: 120.1 },
+      { lat: 30.1, lon: 120.0 },
+    ],
+    geometryType: 'polygon',
+    holes: [],
+    color: '#000',
+    editable: false,
+    visible: true,
+    selected: false,
+  };
+
+  function makeRef(segIdx: number, segFrac: number, ringIndex = 0): SnapRef {
+    return { routeId: 'poly', segIdx, segFrac, ringIndex };
+  }
+
+  function sp(lat: number, lon: number, ref: SnapRef) {
+    return { lat, lon, ref };
+  }
+
+  it('extracts the forward arc between adjacent points on a polygon ring', () => {
+    const start = sp(30.0, 120.0, makeRef(0, 0));
+    const end = sp(30.0, 120.1, makeRef(1, 0));
+
+    const result = extractRouteSegment(polygonRoute, start, end);
+
+    expect(result).not.toBeNull();
+    expect(result).toEqual([
+      { lat: 30.0, lon: 120.0 },
+      { lat: 30.0, lon: 120.1 },
+    ]);
+  });
+
+  it('follows polygon point order from start to end', () => {
+    const start = sp(30.0, 120.0, makeRef(0, 0));
+    const end = sp(30.1, 120.1, makeRef(2, 0));
+
+    const result = extractRouteSegment(polygonRoute, start, end);
+
+    expect(result).toEqual([
+      { lat: 30.0, lon: 120.0 },
+      { lat: 30.0, lon: 120.1 },
+      { lat: 30.1, lon: 120.1 },
+    ]);
+  });
+
+  it('uses reversed click order to extract the complementary polygon arc', () => {
+    const start = sp(30.1, 120.1, makeRef(2, 0));
+    const end = sp(30.0, 120.0, makeRef(0, 0));
+
+    const result = extractRouteSegment(polygonRoute, start, end);
+
+    expect(result).toEqual([
+      { lat: 30.1, lon: 120.1 },
+      { lat: 30.1, lon: 120.0 },
+      { lat: 30.0, lon: 120.0 },
+    ]);
+  });
+
+  it('returns null when refs point to different routes', () => {
+    const start = sp(30.0, 120.0, { routeId: 'other', segIdx: 0, segFrac: 0 });
+    const end = sp(30.0, 120.1, makeRef(1, 0));
+
+    const result = extractRouteSegment(polygonRoute, start, end);
+    expect(result).toBeNull();
+  });
+
+  it('exports polygon segments as Polygon GeoJSON', async () => {
+    mountExportDom({ format: 'csv', bidirectional: true });
+    store.routes = [polygonRoute];
+    store.selectedRouteId = polygonRoute.id;
+    store.segmentExport.startPoint = { lat: 30.0, lon: 120.0 };
+    store.segmentExport.endPoint = { lat: 30.0, lon: 120.1 };
+
+    vi.spyOn(snapUtils, 'snapToRoutes')
+      .mockReturnValueOnce({ lat: 30.0, lon: 120.0, ref: makeRef(0, 0) })
+      .mockReturnValueOnce({ lat: 30.0, lon: 120.1, ref: makeRef(1, 0) });
+
+    let downloadedBlob: Blob | null = null;
+    Object.assign(URL, {
+      createObjectURL: vi.fn((blob: Blob) => {
+        downloadedBlob = blob;
+        return 'blob:test';
+      }),
+    });
+
+    const downloads: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function(this: HTMLAnchorElement) {
+      downloads.push(this.download);
+    });
+
+    exportSegment();
+
+    expect(downloads).toEqual(['poly_1-2.geojson']);
+    expect(downloadedBlob).not.toBeNull();
+
+    const json = JSON.parse(await readBlobAsText(downloadedBlob!)) as {
+      features: Array<{
+        geometry: {
+          type: string;
+          coordinates: [number, number][][];
+        };
+        properties: Record<string, unknown>;
+      }>;
+    };
+    const ring = json.features[0].geometry.coordinates[0];
+
+    expect(json.features[0].geometry.type).toBe('Polygon');
+    expect(ring.length).toBe(4);
+    expect(ring[0]).toEqual(ring[ring.length - 1]);
+    expect(json.features[0].properties.segment).toBe(true);
+    expect(json.features[0].properties.sourceRoute).toBe('poly');
   });
 });
 
