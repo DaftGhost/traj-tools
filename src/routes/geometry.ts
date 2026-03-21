@@ -16,9 +16,8 @@ import {
 } from '../state/store';
 import { SIMPLIFY_CONFIG, SMOOTH_CONFIG } from '../config/constants';
 import {
+  closeRing,
   douglasPeuckerIndices,
-  equidistantResample,
-  equidistantResampleClosed,
   haversineDistance,
   stripClosingPoint,
   visvalingamWhyattIndices,
@@ -93,21 +92,21 @@ function simplifyOpenPath(points: Point[]): Point[] {
     return points.map((point) => ({ ...point }));
   }
 
-  const resampled = equidistantResample(points, 10);
-  const targetPoints = Math.max(
-    SIMPLIFY_CONFIG.minPoints,
-    Math.ceil(resampled.length * SIMPLIFY_CONFIG.retainRatio)
-  );
+  let length = 0;
+  for (let i = 1; i < points.length; i++) {
+    length += haversineDistance(points[i - 1], points[i]);
+  }
+  const targetPoints = Math.max(SIMPLIFY_CONFIG.minPoints, Math.min(points.length, Math.ceil(length / 100)));
 
-  let keepIndices = visvalingamWhyattIndices(resampled, targetPoints);
+  let keepIndices = visvalingamWhyattIndices(points, targetPoints);
 
-  if (keepIndices.length < SIMPLIFY_CONFIG.minPoints || keepIndices.some((i) => i < 0 || i >= resampled.length)) {
+  if (keepIndices.length < SIMPLIFY_CONFIG.minPoints || keepIndices.some((i) => i < 0 || i >= points.length)) {
     const zoom = store.map?.getZoom() ?? 8;
     const tolerance = SIMPLIFY_CONFIG.tolerancePxForZoom(zoom);
-    keepIndices = douglasPeuckerIndices(resampled, tolerance);
+    keepIndices = douglasPeuckerIndices(points, tolerance);
   }
 
-  return keepIndices.map((index) => ({ ...resampled[index] }));
+  return keepIndices.map((index) => ({ ...points[index] }));
 }
 
 function simplifyClosedRing(points: Point[]): Point[] {
@@ -115,21 +114,22 @@ function simplifyClosedRing(points: Point[]): Point[] {
     return points.map((point) => ({ ...point }));
   }
 
-  const resampled = equidistantResampleClosed(points, 10);
-  const targetPoints = Math.max(
-    5,
-    Math.ceil(resampled.length * SIMPLIFY_CONFIG.retainRatio)
-  );
+  const closed = closeRing(points);
+  let perimeter = 0;
+  for (let i = 1; i < closed.length; i++) {
+    perimeter += haversineDistance(closed[i - 1], closed[i]);
+  }
+  const targetPoints = Math.max(5, Math.min(closed.length, Math.ceil(perimeter / 100)));
 
-  let keepIndices = visvalingamWhyattIndices(resampled, targetPoints);
+  let keepIndices = visvalingamWhyattIndices(closed, targetPoints);
 
-  if (keepIndices.length < 5 || keepIndices.some((i) => i < 0 || i >= resampled.length)) {
+  if (keepIndices.length < 5 || keepIndices.some((i) => i < 0 || i >= closed.length)) {
     const zoom = store.map?.getZoom() ?? 8;
     const tolerance = SIMPLIFY_CONFIG.tolerancePxForZoom(zoom);
-    keepIndices = douglasPeuckerIndices(resampled, tolerance);
+    keepIndices = douglasPeuckerIndices(closed, tolerance);
   }
 
-  const simplifiedClosed = keepIndices.map((index) => ({ ...resampled[index] }));
+  const simplifiedClosed = keepIndices.map((index) => ({ ...closed[index] }));
   const simplified = stripClosingPoint(simplifiedClosed);
 
   return simplified.length >= 3 ? simplified : points.map((point) => ({ ...point }));
