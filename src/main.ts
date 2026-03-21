@@ -3,6 +3,8 @@
  * 基于 Leaflet + TypeScript + Vite
  */
 
+import { createApp } from 'vue';
+
 // Suppress mozPressure deprecation warning from Leaflet library
 const originalWarn = console.warn;
 console.warn = function (...args: unknown[]) {
@@ -17,6 +19,7 @@ console.warn = function (...args: unknown[]) {
 };
 
 // Import all modules
+import App from './App.vue';
 import './config/constants';
 import './state/store';
 import { initializeMap } from './map';
@@ -30,6 +33,7 @@ import './export';
 
 // 初始化
 (async () => {
+  createApp(App).mount('#app');
   await initializeMap();
   initializeUI();
 })();

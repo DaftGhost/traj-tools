@@ -18,3 +18,10 @@ declare module '*.geojson' {
   const content: GeoJSON.FeatureCollection;
   export default content;
 }
+
+declare module '*.vue' {
+  import type { DefineComponent } from 'vue';
+
+  const component: DefineComponent<Record<string, never>, Record<string, never>, unknown>;
+  export default component;
+}
