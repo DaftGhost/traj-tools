@@ -279,6 +279,11 @@ function isBidirectionalExport(): boolean {
   return checkbox?.checked ?? true;
 }
 
+function isSegmentAsLinestring(): boolean {
+  const checkbox = document.getElementById('segment-as-linestring') as HTMLInputElement | null;
+  return checkbox?.checked ?? false;
+}
+
 export function exportData(): void {
   const selectedRoutes = store.routes.filter(r => r.visible);
 
@@ -334,13 +339,23 @@ export function exportSegment(): void {
 
   if (format === 'geojson' || isPolygonRoute(route)) {
     if (isPolygonRoute(route)) {
-      downloadGeoJSON(
-        createPolygonSegmentGeoJSONData(segmentPoints, {
-          sourceRoute: route.name,
-          segment: true,
-        }),
-        `${route.name}_${prefix}.geojson`
-      );
+      if (isSegmentAsLinestring()) {
+        downloadGeoJSON(
+          createLineGeoJSONData(segmentPoints, {
+            sourceRoute: route.name,
+            segment: true,
+          }),
+          `${route.name}_${prefix}.geojson`
+        );
+      } else {
+        downloadGeoJSON(
+          createPolygonSegmentGeoJSONData(segmentPoints, {
+            sourceRoute: route.name,
+            segment: true,
+          }),
+          `${route.name}_${prefix}.geojson`
+        );
+      }
     } else if (isBidirectionalExport()) {
       exportForwardReverseGeoJSON(segmentPoints, route.name, prefix);
     } else {

@@ -33,6 +33,10 @@
           <input id="segment-search-radius" type="range" min="1" max="200" value="50" />
           <span id="segment-search-radius-value">50m</span>
         </div>
+        <label class="checkbox-row" id="segment-as-linestring-row">
+          <input id="segment-as-linestring" type="checkbox" />
+          <span>片段导出为折线（仅多边形）</span>
+        </label>
         <div class="segment-status" id="segment-status">未开启</div>
       </div>
     </section>

@@ -46,17 +46,27 @@ function createPolygonRoute(name: string): Route {
   };
 }
 
-function mountExportDom({ format = 'csv', bidirectional = true }: { format?: 'csv' | 'geojson'; bidirectional?: boolean } = {}): void {
+function mountExportDom({
+  format = 'csv',
+  bidirectional = true,
+  segmentAsLinestring = false,
+}: {
+  format?: 'csv' | 'geojson';
+  bidirectional?: boolean;
+  segmentAsLinestring?: boolean;
+} = {}): void {
   document.body.innerHTML = `
     <select id="export-format">
       <option value="csv">CSV格式</option>
       <option value="geojson">GeoJSON格式</option>
     </select>
     <input id="export-bidirectional" type="checkbox" />
+    <input id="segment-as-linestring" type="checkbox" />
   `;
 
   (document.getElementById('export-format') as unknown as HTMLSelectElement).value = format;
   (document.getElementById('export-bidirectional') as unknown as HTMLInputElement).checked = bidirectional;
+  (document.getElementById('segment-as-linestring') as unknown as HTMLInputElement).checked = segmentAsLinestring;
 }
 
 function readBlobAsText(blob: Blob): Promise<string> {
@@ -292,6 +302,54 @@ describe('polygon segment extraction (cut-down export)', () => {
     expect(json.features[0].geometry.type).toBe('Polygon');
     expect(ring.length).toBe(4);
     expect(ring[0]).toEqual(ring[ring.length - 1]);
+    expect(json.features[0].properties.segment).toBe(true);
+    expect(json.features[0].properties.sourceRoute).toBe('poly');
+  });
+
+  it('exports polygon segments as LineString GeoJSON when requested', async () => {
+    mountExportDom({ format: 'csv', bidirectional: true, segmentAsLinestring: true });
+    store.routes = [polygonRoute];
+    store.selectedRouteId = polygonRoute.id;
+    store.segmentExport.startPoint = { lat: 30.0, lon: 120.0 };
+    store.segmentExport.endPoint = { lat: 30.0, lon: 120.1 };
+
+    vi.spyOn(snapUtils, 'snapToRoutes')
+      .mockReturnValueOnce({ lat: 30.0, lon: 120.0, ref: makeRef(0, 0) })
+      .mockReturnValueOnce({ lat: 30.0, lon: 120.1, ref: makeRef(1, 0) });
+
+    let downloadedBlob: Blob | null = null;
+    Object.assign(URL, {
+      createObjectURL: vi.fn((blob: Blob) => {
+        downloadedBlob = blob;
+        return 'blob:test';
+      }),
+    });
+
+    const downloads: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function(this: HTMLAnchorElement) {
+      downloads.push(this.download);
+    });
+
+    exportSegment();
+
+    expect(downloads).toEqual(['poly_1-2.geojson']);
+    expect(downloadedBlob).not.toBeNull();
+
+    const json = JSON.parse(await readBlobAsText(downloadedBlob!)) as {
+      features: Array<{
+        geometry: {
+          type: string;
+          coordinates: [number, number][];
+        };
+        properties: Record<string, unknown>;
+      }>;
+    };
+
+    expect(json.features[0].geometry.type).toBe('LineString');
+    expect(json.features[0].geometry.coordinates).toEqual([
+      [120.0, 30.0],
+      [120.1, 30.0],
+    ]);
     expect(json.features[0].properties.segment).toBe(true);
     expect(json.features[0].properties.sourceRoute).toBe('poly');
   });
