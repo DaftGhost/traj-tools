@@ -17,7 +17,6 @@ import {
 import { SIMPLIFY_CONFIG, SMOOTH_CONFIG } from '../config/constants';
 import {
   closeRing,
-  douglasPeuckerIndices,
   haversineDistance,
   stripClosingPoint,
   visvalingamWhyattIndices,
@@ -64,7 +63,9 @@ function getDisplayRing(route: Route, ringIndex: number): Point[] {
     return route._display?.simplified ?? route.points;
   }
 
-  return route._display?.holes?.[ringIndex - 1] ?? route.holes?.[ringIndex - 1] ?? [];
+  return (
+    route._display?.holes?.[ringIndex - 1] ?? route.holes?.[ringIndex - 1] ?? []
+  );
 }
 
 function getRouteRingsForDisplay(route: Route): Point[][] {
@@ -73,7 +74,10 @@ function getRouteRingsForDisplay(route: Route): Point[][] {
   return rings.concat(displayHoles);
 }
 
-function getLatLngArrayForRing(layer: L.Polyline | L.Polygon | null, ringIndex: number): L.LatLng[] | null {
+function getLatLngArrayForRing(
+  layer: L.Polyline | L.Polygon | null,
+  ringIndex: number
+): L.LatLng[] | null {
   if (!layer) return null;
 
   const latlngs = layer.getLatLngs() as unknown;
@@ -96,14 +100,18 @@ function simplifyOpenPath(points: Point[]): Point[] {
   for (let i = 1; i < points.length; i++) {
     length += haversineDistance(points[i - 1], points[i]);
   }
-  const targetPoints = Math.max(SIMPLIFY_CONFIG.minPoints, Math.min(points.length, Math.ceil(length / 100)));
+  const targetPoints = Math.max(
+    SIMPLIFY_CONFIG.minPoints,
+    Math.min(points.length, Math.ceil(length / 100))
+  );
 
   let keepIndices = visvalingamWhyattIndices(points, targetPoints);
 
-  if (keepIndices.length < SIMPLIFY_CONFIG.minPoints || keepIndices.some((i) => i < 0 || i >= points.length)) {
-    const zoom = store.map?.getZoom() ?? 8;
-    const tolerance = SIMPLIFY_CONFIG.tolerancePxForZoom(zoom);
-    keepIndices = douglasPeuckerIndices(points, tolerance);
+  if (
+    keepIndices.length < SIMPLIFY_CONFIG.minPoints ||
+    keepIndices.some((i) => i < 0 || i >= points.length)
+  ) {
+    return points.map((point) => ({ ...point }));
   }
 
   return keepIndices.map((index) => ({ ...points[index] }));
@@ -119,36 +127,60 @@ function simplifyClosedRing(points: Point[]): Point[] {
   for (let i = 1; i < closed.length; i++) {
     perimeter += haversineDistance(closed[i - 1], closed[i]);
   }
-  const targetPoints = Math.max(5, Math.min(closed.length, Math.ceil(perimeter / 100)));
+  const targetPoints = Math.max(
+    5,
+    Math.min(closed.length, Math.ceil(perimeter / 100))
+  );
 
   let keepIndices = visvalingamWhyattIndices(closed, targetPoints);
 
-  if (keepIndices.length < 5 || keepIndices.some((i) => i < 0 || i >= closed.length)) {
-    const zoom = store.map?.getZoom() ?? 8;
-    const tolerance = SIMPLIFY_CONFIG.tolerancePxForZoom(zoom);
-    keepIndices = douglasPeuckerIndices(closed, tolerance);
+  if (
+    keepIndices.length < 5 ||
+    keepIndices.some((i) => i < 0 || i >= closed.length)
+  ) {
+    return points.map((point) => ({ ...point }));
   }
 
   const simplifiedClosed = keepIndices.map((index) => ({ ...closed[index] }));
   const simplified = stripClosingPoint(simplifiedClosed);
 
-  return simplified.length >= 3 ? simplified : points.map((point) => ({ ...point }));
+  return simplified.length >= 3
+    ? simplified
+    : points.map((point) => ({ ...point }));
 }
 
-function getPointSelection(route: Route, ringIndex: number, pointIdx: number): { routeId: string; pointIdx: number; ringIndex?: number } {
+function getPointSelection(
+  route: Route,
+  ringIndex: number,
+  pointIdx: number
+): { routeId: string; pointIdx: number; ringIndex?: number } {
   return isPolygonRoute(route)
     ? { routeId: route.id, pointIdx, ringIndex }
     : { routeId: route.id, pointIdx };
 }
 
-function selectRoutePoint(route: Route, ringIndex: number, pointIdx: number): void {
+function selectRoutePoint(
+  route: Route,
+  ringIndex: number,
+  pointIdx: number
+): void {
   const selection = getPointSelection(route, ringIndex, pointIdx);
   store.selectPoint(selection.routeId, selection.pointIdx, selection.ringIndex);
 }
 
-function setRouteEditHandle(route: Route, ringIndex: number, pointIdx: number, marker: L.Marker): void {
+function setRouteEditHandle(
+  route: Route,
+  ringIndex: number,
+  pointIdx: number,
+  marker: L.Marker
+): void {
   const selection = getPointSelection(route, ringIndex, pointIdx);
-  store.setEditHandle(selection.routeId, selection.pointIdx, marker, selection.ringIndex);
+  store.setEditHandle(
+    selection.routeId,
+    selection.pointIdx,
+    marker,
+    selection.ringIndex
+  );
 }
 
 function buildDistanceCache(points: Point[], closed: boolean): number[] {
@@ -171,15 +203,24 @@ function buildDistanceCache(points: Point[], closed: boolean): number[] {
   return cache;
 }
 
-function getDistanceCacheForRing(route: Route, ringIndex: number): number[] | undefined {
+function getDistanceCacheForRing(
+  route: Route,
+  ringIndex: number
+): number[] | undefined {
   if (!route._distCache) {
     updateRouteDistanceCache(route);
   }
 
-  return ringIndex === 0 ? route._distCache : route._holeDistCaches?.[ringIndex - 1];
+  return ringIndex === 0
+    ? route._distCache
+    : route._holeDistCaches?.[ringIndex - 1];
 }
 
-export function getRouteSegment(route: Route, segIdx: number, ringIndex: number = 0): { start: Point; end: Point; closed: boolean } | null {
+export function getRouteSegment(
+  route: Route,
+  segIdx: number,
+  ringIndex: number = 0
+): { start: Point; end: Point; closed: boolean } | null {
   const points = getPointsForRing(route, ringIndex);
   const closed = isPolygonRoute(route);
 
@@ -199,9 +240,13 @@ export function getRouteSegment(route: Route, segIdx: number, ringIndex: number 
   };
 }
 
-function getDisplayLatLngs(route: Route): L.LatLngExpression[] | L.LatLngExpression[][] {
+function getDisplayLatLngs(
+  route: Route
+): L.LatLngExpression[] | L.LatLngExpression[][] {
   const outer = route._display?.simplified ?? route.points;
-  const outerLatLngs = outer.map((point) => [point.lat, point.lon] as L.LatLngExpression);
+  const outerLatLngs = outer.map(
+    (point) => [point.lat, point.lon] as L.LatLngExpression
+  );
 
   if (!isPolygonRoute(route)) {
     return outerLatLngs;
@@ -209,7 +254,9 @@ function getDisplayLatLngs(route: Route): L.LatLngExpression[] | L.LatLngExpress
 
   const holes = route._display?.holes ?? route.holes ?? [];
   const holeLatLngs = holes
-    .map((ring) => ring.map((point) => [point.lat, point.lon] as L.LatLngExpression))
+    .map((ring) =>
+      ring.map((point) => [point.lat, point.lon] as L.LatLngExpression)
+    )
     .filter((ring) => ring.length >= 3);
 
   if (holeLatLngs.length === 0) {
@@ -224,7 +271,11 @@ function getDisplayLatLngs(route: Route): L.LatLngExpression[] | L.LatLngExpress
  * 使用累积沿线距离，只影响 radius 范围内的点
  * 保存每个点的原始位置 lat0, lon0 用于计算偏移量
  */
-function buildSmoothDragContext(route: Route, movedIdx: number, ringIndex: number = 0): SmoothDragContext | null {
+function buildSmoothDragContext(
+  route: Route,
+  movedIdx: number,
+  ringIndex: number = 0
+): SmoothDragContext | null {
   const radius = store.smoothRadius || SMOOTH_CONFIG.radiusMeters;
   const points = getPointsForRing(route, ringIndex);
   const pointCount = points.length;
@@ -232,7 +283,9 @@ function buildSmoothDragContext(route: Route, movedIdx: number, ringIndex: numbe
 
   if (!moved) return null;
 
-  const items: SmoothDragItem[] = [{ idx: movedIdx, w: 1, lat0: moved.lat, lon0: moved.lon }];
+  const items: SmoothDragItem[] = [
+    { idx: movedIdx, w: 1, lat0: moved.lat, lon0: moved.lon },
+  ];
   const closed = isPolygonRoute(route);
 
   if (radius > 0 && store.map) {
@@ -251,7 +304,12 @@ function buildSmoothDragContext(route: Route, movedIdx: number, ringIndex: numbe
       if (cum > radius) break;
 
       visited.add(prevIdx);
-      items.push({ idx: prevIdx, w: Math.max(0, 1 - cum / radius), lat0: b.lat, lon0: b.lon });
+      items.push({
+        idx: prevIdx,
+        w: Math.max(0, 1 - cum / radius),
+        lat0: b.lat,
+        lon0: b.lon,
+      });
       currentIdx = prevIdx;
     }
 
@@ -268,7 +326,12 @@ function buildSmoothDragContext(route: Route, movedIdx: number, ringIndex: numbe
       if (cum > radius) break;
 
       visited.add(nextIdx);
-      items.push({ idx: nextIdx, w: Math.max(0, 1 - cum / radius), lat0: b.lat, lon0: b.lon });
+      items.push({
+        idx: nextIdx,
+        w: Math.max(0, 1 - cum / radius),
+        lat0: b.lat,
+        lon0: b.lon,
+      });
       currentIdx = nextIdx;
     }
   }
@@ -286,7 +349,12 @@ function buildSmoothDragContext(route: Route, movedIdx: number, ringIndex: numbe
  * 平滑更新点位置
  * 使用预计算的上下文，只更新受影响的点
  */
-function smoothUpdatePoint(route: Route, context: SmoothDragContext, newLat: number, newLon: number): void {
+function smoothUpdatePoint(
+  route: Route,
+  context: SmoothDragContext,
+  newLat: number,
+  newLon: number
+): void {
   const ringIndex = context.ringIndex ?? 0;
   const points = getPointsForRing(route, ringIndex);
   const movedPoint = points[context.movedIdx];
@@ -298,7 +366,10 @@ function smoothUpdatePoint(route: Route, context: SmoothDragContext, newLat: num
   context.accumulatedDelta.lat += dLat;
   context.accumulatedDelta.lon += dLon;
 
-  const latlngs = getLatLngArrayForRing(route._display?.layer ?? null, ringIndex);
+  const latlngs = getLatLngArrayForRing(
+    route._display?.layer ?? null,
+    ringIndex
+  );
 
   for (const item of context.items) {
     const lat = item.lat0 + item.w * context.accumulatedDelta.lat;
@@ -358,7 +429,9 @@ function updateRouteLayer(route: Route): void {
   display.markers.forEach((marker) => marker.remove());
   display.markers = [];
 
-  const visibleOuter = display.simplified.filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lon));
+  const visibleOuter = display.simplified.filter(
+    (point) => Number.isFinite(point.lat) && Number.isFinite(point.lon)
+  );
   if (visibleOuter.length === 0) return;
 
   const geometryType = getRouteGeometryType(route);
@@ -366,22 +439,36 @@ function updateRouteLayer(route: Route): void {
 
   if (geometryType === 'polygon' && visibleOuter.length >= 3) {
     const holes = (display.holes ?? [])
-      .map((ring) => ring.filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lon)))
+      .map((ring) =>
+        ring.filter(
+          (point) => Number.isFinite(point.lat) && Number.isFinite(point.lon)
+        )
+      )
       .filter((ring) => ring.length >= 3)
-      .map((ring) => ring.map((point) => [point.lat, point.lon] as L.LatLngExpression));
+      .map((ring) =>
+        ring.map((point) => [point.lat, point.lon] as L.LatLngExpression)
+      );
 
-    const outerLatLngs = visibleOuter.map((point) => [point.lat, point.lon] as L.LatLngExpression);
-    const polygonLatLngs = holes.length > 0 ? [outerLatLngs, ...holes] : outerLatLngs;
+    const outerLatLngs = visibleOuter.map(
+      (point) => [point.lat, point.lon] as L.LatLngExpression
+    );
+    const polygonLatLngs =
+      holes.length > 0 ? [outerLatLngs, ...holes] : outerLatLngs;
 
-    layer = L.polygon(polygonLatLngs as L.LatLngExpression[] | L.LatLngExpression[][], {
-      color: route.color,
-      weight: 3,
-      opacity: 0.9,
-      fillColor: route.color,
-      fillOpacity: 0.2,
-    }) as unknown as L.Polygon;
+    layer = L.polygon(
+      polygonLatLngs as L.LatLngExpression[] | L.LatLngExpression[][],
+      {
+        color: route.color,
+        weight: 3,
+        opacity: 0.9,
+        fillColor: route.color,
+        fillOpacity: 0.2,
+      }
+    ) as unknown as L.Polygon;
   } else {
-    const latlngs = visibleOuter.map((point) => [point.lat, point.lon] as L.LatLngExpression);
+    const latlngs = visibleOuter.map(
+      (point) => [point.lat, point.lon] as L.LatLngExpression
+    );
     layer = L.polyline(latlngs, {
       color: route.color,
       weight: 3,
@@ -403,8 +490,15 @@ function updateRouteLayer(route: Route): void {
     if (route.editable && route.selected) {
       const nearest = findNearestPointSelection(event.latlng, route);
       if (nearest) {
-        const point = getPointsForRing(route, nearest.ringIndex)[nearest.pointIdx];
-        createDragMarker(route, nearest.pointIdx, L.latLng(point.lat, point.lon), nearest.ringIndex);
+        const point = getPointsForRing(route, nearest.ringIndex)[
+          nearest.pointIdx
+        ];
+        createDragMarker(
+          route,
+          nearest.pointIdx,
+          L.latLng(point.lat, point.lon),
+          nearest.ringIndex
+        );
       }
     }
 
@@ -415,7 +509,10 @@ function updateRouteLayer(route: Route): void {
 /**
  * 找到航线中距离给定位置最近的节点索引
  */
-function findNearestPointSelection(latlng: L.LatLng, route: Route): RingSelection | null {
+function findNearestPointSelection(
+  latlng: L.LatLng,
+  route: Route
+): RingSelection | null {
   const rings = [route.points, ...(route.holes ?? [])];
   const closed = isPolygonRoute(route);
 
@@ -448,7 +545,8 @@ function findNearestPointSelection(latlng: L.LatLng, route: Route): RingSelectio
 
   for (let i = 0; i < ring.length; i++) {
     const point = ring[i];
-    if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lon)) continue;
+    if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lon))
+      continue;
 
     const dist = haversineDistance(target, point);
     if (dist < minPointDist) {
@@ -464,7 +562,12 @@ function findNearestPointSelection(latlng: L.LatLng, route: Route): RingSelectio
  * 创建临时拖拽标记
  * 点击航线后创建，拖拽结束后移除
  */
-function createDragMarker(route: Route, pointIdx: number, position: L.LatLng, ringIndex: number = 0): void {
+function createDragMarker(
+  route: Route,
+  pointIdx: number,
+  position: L.LatLng,
+  ringIndex: number = 0
+): void {
   if (!store.map) return;
 
   if (dragMarker) {
@@ -504,7 +607,12 @@ function createDragMarker(route: Route, pointIdx: number, position: L.LatLng, ri
     const mouseEvent = event as unknown as L.LeafletMouseEvent;
     if (!smoothDragContext || !dragRouteId) return;
 
-    smoothUpdatePoint(route, smoothDragContext, mouseEvent.latlng.lat, mouseEvent.latlng.lng);
+    smoothUpdatePoint(
+      route,
+      smoothDragContext,
+      mouseEvent.latlng.lat,
+      mouseEvent.latlng.lng
+    );
     updatePropertiesPanel();
   });
 
@@ -561,7 +669,10 @@ export function clearDragMarker(): void {
 export let refreshRoutesList: () => void = () => {};
 export let updatePropertiesPanel: () => void = () => {};
 
-export function setUIRefreshFunctions(refreshList: () => void, updatePanel: () => void): void {
+export function setUIRefreshFunctions(
+  refreshList: () => void,
+  updatePanel: () => void
+): void {
   refreshRoutesList = refreshList;
   updatePropertiesPanel = updatePanel;
 }
@@ -569,7 +680,12 @@ export function setUIRefreshFunctions(refreshList: () => void, updatePanel: () =
 /**
  * 添加节点到航线末尾
  */
-export function addNodeToRoute(routeId: string, lat: number, lon: number, ringIndex: number = 0): void {
+export function addNodeToRoute(
+  routeId: string,
+  lat: number,
+  lon: number,
+  ringIndex: number = 0
+): void {
   const route = store.getRouteById(routeId);
   if (!route || !route.editable) return;
 
@@ -587,7 +703,12 @@ export function addNodeToRoute(routeId: string, lat: number, lon: number, ringIn
 /**
  * 在航线开头添加节点（绝对首点前插）
  */
-export function prependNodeToRoute(routeId: string, lat: number, lon: number, ringIndex: number = 0): void {
+export function prependNodeToRoute(
+  routeId: string,
+  lat: number,
+  lon: number,
+  ringIndex: number = 0
+): void {
   const route = store.getRouteById(routeId);
   if (!route || !route.editable) return;
 
@@ -607,9 +728,18 @@ export function prependNodeToRoute(routeId: string, lat: number, lon: number, ri
 /**
  * 选中航线端点并创建可拖拽编辑句柄
  */
-export function selectRouteEndpoint(routeId: string, endpoint: 'start' | 'end'): boolean {
+export function selectRouteEndpoint(
+  routeId: string,
+  endpoint: 'start' | 'end'
+): boolean {
   const route = store.getRouteById(routeId);
-  if (!route || !route.editable || route.points.length === 0 || !store.map || isPolygonRoute(route)) {
+  if (
+    !route ||
+    !route.editable ||
+    route.points.length === 0 ||
+    !store.map ||
+    isPolygonRoute(route)
+  ) {
     return false;
   }
 
@@ -623,7 +753,11 @@ export function selectRouteEndpoint(routeId: string, endpoint: 'start' | 'end'):
 /**
  * 删除指定索引节点
  */
-export function deleteNodeFromRoute(routeId: string, pointIdx: number, ringIndex: number = 0): boolean {
+export function deleteNodeFromRoute(
+  routeId: string,
+  pointIdx: number,
+  ringIndex: number = 0
+): boolean {
   const route = store.getRouteById(routeId);
   if (!route || !route.editable) return false;
 
@@ -676,7 +810,13 @@ export function deleteNodeFromRoute(routeId: string, pointIdx: number, ringIndex
 /**
  * 在指定索引处插入节点
  */
-export function insertNodeAt(routeId: string, lat: number, lon: number, afterIdx: number, ringIndex: number = 0): void {
+export function insertNodeAt(
+  routeId: string,
+  lat: number,
+  lon: number,
+  afterIdx: number,
+  ringIndex: number = 0
+): void {
   const route = store.getRouteById(routeId);
   if (!route || !route.editable) return;
 
@@ -696,7 +836,9 @@ export function insertNodeAt(routeId: string, lat: number, lon: number, afterIdx
  */
 export function updateRouteDistanceCache(route: Route): void {
   route._distCache = buildDistanceCache(route.points, isPolygonRoute(route));
-  route._holeDistCaches = (route.holes ?? []).map((ring) => buildDistanceCache(ring, true));
+  route._holeDistCaches = (route.holes ?? []).map((ring) =>
+    buildDistanceCache(ring, true)
+  );
 }
 
 /**
@@ -706,7 +848,12 @@ export function updateRouteDistanceCache(route: Route): void {
  * @param idx2 终点索引
  * @returns 累计距离（米），如果索引无效返回 null
  */
-export function getRouteCumulativeDistance(route: Route, idx1: number, idx2: number, ringIndex: number = 0): number | null {
+export function getRouteCumulativeDistance(
+  route: Route,
+  idx1: number,
+  idx2: number,
+  ringIndex: number = 0
+): number | null {
   const points = getPointsForRing(route, ringIndex);
   if (idx1 < 0 || idx2 < 0 || idx1 >= points.length || idx2 >= points.length) {
     return null;
@@ -734,23 +881,26 @@ function distanceToSegment(point: L.LatLng, a: Point, b: Point): number {
   }
 
   const earthRadius = 6371000;
-  const lat = point.lat * Math.PI / 180;
-  const lng = point.lng * Math.PI / 180;
-  const lat1 = a.lat * Math.PI / 180;
-  const lon1 = a.lon * Math.PI / 180;
-  const lat2 = b.lat * Math.PI / 180;
-  const lon2 = b.lon * Math.PI / 180;
+  const lat = (point.lat * Math.PI) / 180;
+  const lng = (point.lng * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lon1 = (a.lon * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const lon2 = (b.lon * Math.PI) / 180;
 
   const dLat = lat2 - lat1;
   const dLon = lon2 - lon1;
-  const t = ((lng - lon1) * dLon + (lat - lat1) * dLat) / (dLon * dLon + dLat * dLat);
+  const t =
+    ((lng - lon1) * dLon + (lat - lat1) * dLat) / (dLon * dLon + dLat * dLat);
   const tClamped = Math.max(0, Math.min(1, t));
 
   const projLat = lat1 + tClamped * dLat;
   const projLng = lon1 + tClamped * dLon;
   const sinDLat = Math.sin((projLat - lat) / 2);
   const sinDLng = Math.sin((projLng - lng) / 2);
-  const sinD = Math.sqrt(sinDLat * sinDLat + Math.cos(lat) * Math.cos(projLat) * sinDLng * sinDLng);
+  const sinD = Math.sqrt(
+    sinDLat * sinDLat + Math.cos(lat) * Math.cos(projLat) * sinDLng * sinDLng
+  );
 
   return 2 * earthRadius * Math.asin(sinD);
 }
@@ -759,7 +909,11 @@ function distanceToSegment(point: L.LatLng, a: Point, b: Point): number {
  * 找到距离点击位置最近的航线段索引
  * 返回段终点索引（即在该索引后插入）
  */
-export function findNearestSegmentIndex(latlng: L.LatLng, route: Route, ringIndex: number = 0): number {
+export function findNearestSegmentIndex(
+  latlng: L.LatLng,
+  route: Route,
+  ringIndex: number = 0
+): number {
   const points = getPointsForRing(route, ringIndex);
   if (!store.map || points.length < 2) return -1;
 
