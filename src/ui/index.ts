@@ -2,14 +2,30 @@
  * UI 初始化模块
  */
 
-import { store, getPointsForRing, getRouteVertexCount, isPolygonRoute } from '../state/store';
+import { store, getPointsForRing, isPolygonRoute } from '../state/store';
 import { initializePanelSwitching } from './panels';
 import { initializeKeyboardShortcuts } from './keyboard';
 import { initializeCommandPalette } from './commands';
 import { getLastSelectedBaseLayer, switchBaseLayer } from '../map/layers';
 import { fitAllRoutes } from '../map';
 import { setUIRefreshFunctions } from '../routes/index';
-import { calculateLineLength, calculatePolygonArea, calculateRingPerimeter } from '../utils/geo';
+import { setStatus } from '../utils/uiStatus';
+import {
+  clearStatusMessage,
+  refreshPropertiesView,
+  refreshRouteListView,
+  refreshStatusSummary,
+  registerViewRefreshCallbacks,
+  setRouteSearchQuery,
+} from './viewBridge';
+
+registerViewRefreshCallbacks({
+  onRouteListRefresh: updateExportBidirectionalControlState,
+  onPropertiesRefresh: () => {
+    syncEndpointQuickControls();
+    updateExportBidirectionalControlState();
+  },
+});
 
 /**
  * 初始化所有 UI 组件
@@ -40,7 +56,7 @@ export function initializeUI(): void {
 function initializePropertiesPanel(): void {
   const toggleBtn = document.getElementById('properties-toggle');
   toggleBtn?.addEventListener('click', () => {
-    import('./panels').then(m => m.togglePropertiesPanel());
+    import('./panels').then((m) => m.togglePropertiesPanel());
   });
 }
 
@@ -114,24 +130,14 @@ function handleEditMenu(): void {
  */
 function handleViewMenu(): void {
   // 切换右侧属性面板
-  import('./panels').then(m => m.togglePropertiesPanel());
+  import('./panels').then((m) => m.togglePropertiesPanel());
 }
 
 /**
  * 帮助菜单
  */
 function handleHelpMenu(): void {
-  import('./panels').then(m => m.switchToPanel('help'));
-}
-
-/**
- * 设置状态栏消息
- */
-function setStatus(message: string): void {
-  const el = document.getElementById('status-selection');
-  if (el) {
-    el.textContent = message;
-  }
+  import('./panels').then((m) => m.switchToPanel('help'));
 }
 
 /**
@@ -170,7 +176,9 @@ async function handleFiles(e: Event): Promise<void> {
  * 初始化地图控件
  */
 function initializeMapControls(): void {
-  const mapSelect = document.getElementById('map-select') as unknown as HTMLSelectElement;
+  const mapSelect = document.getElementById(
+    'map-select'
+  ) as unknown as HTMLSelectElement;
 
   // 设置上次选择的底图为初始值
   if (mapSelect) {
@@ -199,8 +207,12 @@ function getEndpointQuickControlRefs(): EndpointQuickControlRefs | null {
   if (endpointQuickControlRefs) return endpointQuickControlRefs;
 
   const controls = document.getElementById('endpoint-quick-controls');
-  const startBtn = document.getElementById('select-start-endpoint') as HTMLButtonElement | null;
-  const endBtn = document.getElementById('select-end-endpoint') as HTMLButtonElement | null;
+  const startBtn = document.getElementById(
+    'select-start-endpoint'
+  ) as HTMLButtonElement | null;
+  const endBtn = document.getElementById(
+    'select-end-endpoint'
+  ) as HTMLButtonElement | null;
 
   if (!controls || !startBtn || !endBtn) return null;
 
@@ -222,12 +234,16 @@ function initializeEditControls(): void {
   deleteNodeBtn?.addEventListener('click', deleteSelectedNode);
 
   const endpointRefs = getEndpointQuickControlRefs();
-  endpointRefs?.startBtn.addEventListener('click', () => selectEndpointQuickly('start'));
-  endpointRefs?.endBtn.addEventListener('click', () => selectEndpointQuickly('end'));
+  endpointRefs?.startBtn.addEventListener('click', () =>
+    selectEndpointQuickly('start')
+  );
+  endpointRefs?.endBtn.addEventListener('click', () =>
+    selectEndpointQuickly('end')
+  );
 
   const newRouteBtn = document.getElementById('new-route');
   newRouteBtn?.addEventListener('click', () => {
-    import('../tools/draw').then(m => {
+    import('../tools/draw').then((m) => {
       if (m.getDrawingModeKind?.() === 'polyline') {
         m.finishDrawingRoute();
       } else if (!m.isDrawingMode()) {
@@ -238,7 +254,7 @@ function initializeEditControls(): void {
 
   const newPolygonBtn = document.getElementById('new-polygon');
   newPolygonBtn?.addEventListener('click', () => {
-    import('../tools/draw').then(m => {
+    import('../tools/draw').then((m) => {
       if (m.getDrawingModeKind?.() === 'polygon') {
         m.finishDrawingRoute();
       } else if (!m.isDrawingMode()) {
@@ -249,7 +265,7 @@ function initializeEditControls(): void {
 
   const addHoleBtn = document.getElementById('add-hole');
   addHoleBtn?.addEventListener('click', () => {
-    import('../tools/draw').then(m => {
+    import('../tools/draw').then((m) => {
       if (m.getDrawingModeKind?.() === 'hole') {
         m.finishDrawingRoute();
         return;
@@ -318,16 +334,23 @@ function handleAddNodeClick(e: L.LeafletMouseEvent): void {
   const route = store.getSelectedRoute();
   if (!route || !route.editable) return;
 
-  import('../routes/geometry').then(m => {
+  import('../routes/geometry').then((m) => {
     const selectedPoint = store.selectedPoint;
-    const isCurrentRouteSelection = selectedPoint && selectedPoint.routeId === route.id;
+    const isCurrentRouteSelection =
+      selectedPoint && selectedPoint.routeId === route.id;
 
     if (isCurrentRouteSelection) {
       const ringIndex = selectedPoint.ringIndex ?? 0;
       if (!isPolygonRoute(route) && selectedPoint.pointIdx === 0) {
         m.prependNodeToRoute(route.id, e.latlng.lat, e.latlng.lng, ringIndex);
       } else {
-        m.insertNodeAt(route.id, e.latlng.lat, e.latlng.lng, selectedPoint.pointIdx, ringIndex);
+        m.insertNodeAt(
+          route.id,
+          e.latlng.lat,
+          e.latlng.lng,
+          selectedPoint.pointIdx,
+          ringIndex
+        );
       }
     } else {
       m.addNodeToRoute(route.id, e.latlng.lat, e.latlng.lng);
@@ -339,14 +362,17 @@ function handleAddNodeClick(e: L.LeafletMouseEvent): void {
  * 初始化平滑半径控件
  */
 function initializeSmoothControls(): void {
-  const radiusInput = document.getElementById('smooth-radius') as HTMLInputElement;
+  const radiusInput = document.getElementById(
+    'smooth-radius'
+  ) as HTMLInputElement;
   const radiusDisplay = document.getElementById('smooth-radius-km');
 
   // 初始化时同步值到 store
   if (radiusInput) {
     store.smoothRadius = parseInt(radiusInput.value) || 20;
     if (radiusDisplay) {
-      radiusDisplay.textContent = (store.smoothRadius / 1000).toFixed(2) + ' km';
+      radiusDisplay.textContent =
+        (store.smoothRadius / 1000).toFixed(2) + ' km';
     }
   }
 
@@ -358,9 +384,16 @@ function initializeSmoothControls(): void {
     }
   });
 
-  ['smooth-plus-1', 'smooth-plus-100', 'smooth-minus-1', 'smooth-minus-100'].forEach(id => {
+  [
+    'smooth-plus-1',
+    'smooth-plus-100',
+    'smooth-minus-1',
+    'smooth-minus-100',
+  ].forEach((id) => {
     document.getElementById(id)?.addEventListener('click', () => {
-      const input = document.getElementById('smooth-radius') as HTMLInputElement;
+      const input = document.getElementById(
+        'smooth-radius'
+      ) as HTMLInputElement;
       if (input) {
         let value = parseInt(input.value) || 20;
         if (id.includes('plus')) {
@@ -405,7 +438,7 @@ function toggleEditMode(): void {
     }
 
     // 清除 geometry 模块中的拖拽标记
-    import('../routes/geometry').then(m => m.clearDragMarker());
+    import('../routes/geometry').then((m) => m.clearDragMarker());
   }
 
   route.editable = !route.editable;
@@ -416,7 +449,7 @@ function toggleEditMode(): void {
     btn.classList.toggle('btn-success', route.editable);
   }
 
-  import('../routes/geometry').then(m => {
+  import('../routes/geometry').then((m) => {
     if (route._display) {
       m.updateRouteDisplayGeometry(route);
     }
@@ -433,7 +466,7 @@ export function deleteSelectedNode(): void {
   const selectedAtTrigger = store.selectedPoint;
   if (!selectedAtTrigger) return;
 
-  import('../routes/geometry').then(m => {
+  import('../routes/geometry').then((m) => {
     const currentSelected = store.selectedPoint;
     if (!currentSelected) return;
     if (
@@ -457,7 +490,10 @@ export function deleteSelectedNode(): void {
  */
 let selectedMergeRouteId: string | null = null;
 
-function canMergeRoutes(routeA: NonNullable<ReturnType<typeof store.getSelectedRoute>>, routeB: typeof store.routes[number]): boolean {
+function canMergeRoutes(
+  routeA: NonNullable<ReturnType<typeof store.getSelectedRoute>>,
+  routeB: (typeof store.routes)[number]
+): boolean {
   return !isPolygonRoute(routeA) && !isPolygonRoute(routeB);
 }
 
@@ -531,7 +567,7 @@ function renderMergeRouteList(): void {
   if (!container) return;
 
   const selectedRoute = store.getSelectedRoute();
-  const otherRoutes = store.routes.filter(r => r.id !== selectedRoute?.id);
+  const otherRoutes = store.routes.filter((r) => r.id !== selectedRoute?.id);
 
   container.innerHTML = '';
 
@@ -543,12 +579,14 @@ function renderMergeRouteList(): void {
     return;
   }
 
-  otherRoutes.forEach(route => {
+  otherRoutes.forEach((route) => {
     const item = document.createElement('div');
     item.className = 'merge-route-item';
     item.dataset.id = route.id;
 
-    const mergeable = selectedRoute ? canMergeRoutes(selectedRoute, route) : true;
+    const mergeable = selectedRoute
+      ? canMergeRoutes(selectedRoute, route)
+      : true;
     if (!mergeable) {
       item.classList.add('disabled');
       item.title = '暂不支持多边形合并';
@@ -572,7 +610,9 @@ function renderMergeRouteList(): void {
 
     item.addEventListener('click', () => {
       if (!mergeable) return;
-      document.querySelectorAll('.merge-route-item').forEach(el => el.classList.remove('selected'));
+      document
+        .querySelectorAll('.merge-route-item')
+        .forEach((el) => el.classList.remove('selected'));
       item.classList.add('selected');
       selectedMergeRouteId = route.id;
     });
@@ -591,7 +631,7 @@ function confirmMerge(): void {
     return;
   }
 
-  import('../routes/index').then(m => {
+  import('../routes/index').then((m) => {
     const mergedRoute = m.mergeRoutes(route.id, selectedMergeRouteId!);
     if (mergedRoute) {
       closeMergeDialog();
@@ -611,11 +651,11 @@ function initializeMeasureControls(): void {
   const clearBtn = document.getElementById('clear-measure');
 
   toggleBtn?.addEventListener('click', () => {
-    import('../tools/measure').then(m => m.toggleMeasureMode());
+    import('../tools/measure').then((m) => m.toggleMeasureMode());
   });
 
   clearBtn?.addEventListener('click', () => {
-    import('../tools/measure').then(m => m.clearMeasure());
+    import('../tools/measure').then((m) => m.clearMeasure());
   });
 }
 
@@ -623,13 +663,19 @@ function initializeMeasureControls(): void {
  * 初始化导出控件
  */
 function updateExportBidirectionalControlState(): void {
-  const checkbox = document.getElementById('export-bidirectional') as HTMLInputElement | null;
+  const checkbox = document.getElementById(
+    'export-bidirectional'
+  ) as HTMLInputElement | null;
   const row = document.getElementById('export-bidirectional-row');
   if (!checkbox) return;
 
   const selectedRoute = store.getSelectedRoute();
-  const hasVisiblePolyline = store.routes.some((route) => route.visible && !isPolygonRoute(route));
-  const hasSelectedPolyline = Boolean(selectedRoute && !isPolygonRoute(selectedRoute));
+  const hasVisiblePolyline = store.routes.some(
+    (route) => route.visible && !isPolygonRoute(route)
+  );
+  const hasSelectedPolyline = Boolean(
+    selectedRoute && !isPolygonRoute(selectedRoute)
+  );
   const enabled = hasVisiblePolyline || hasSelectedPolyline;
   const title = enabled ? '仅对折线导出生效' : '当前没有可应用双向导出的折线';
 
@@ -644,18 +690,20 @@ function initializeExportControls(): void {
   const toggleSegmentBtn = document.getElementById('toggle-segment-export');
 
   exportBtn?.addEventListener('click', () => {
-    import('../export/index').then(m => m.exportData());
+    import('../export/index').then((m) => m.exportData());
   });
 
   segmentBtn?.addEventListener('click', () => {
-    import('../export/index').then(m => m.exportSegment());
+    import('../export/index').then((m) => m.exportSegment());
   });
 
   toggleSegmentBtn?.addEventListener('click', () => {
-    import('../tools/segment').then(m => m.toggleSegmentExportMode());
+    import('../tools/segment').then((m) => m.toggleSegmentExportMode());
   });
 
-  const radiusSlider = document.getElementById('segment-search-radius') as HTMLInputElement;
+  const radiusSlider = document.getElementById(
+    'segment-search-radius'
+  ) as HTMLInputElement;
   const radiusValue = document.getElementById('segment-search-radius-value');
   radiusSlider?.addEventListener('input', (e) => {
     const value = (e.target as HTMLInputElement).value;
@@ -672,16 +720,26 @@ function initializeExportControls(): void {
  * 初始化热力图控件
  */
 function initializeHeatmapControls(): void {
-  const enabledCheckbox = document.getElementById('heatmap-enabled') as HTMLInputElement;
-  const radiusSlider = document.getElementById('heatmap-radius') as HTMLInputElement;
-  const blurSlider = document.getElementById('heatmap-blur') as HTMLInputElement;
-  const opacitySlider = document.getElementById('heatmap-opacity') as HTMLInputElement;
-  const gradientSelect = document.getElementById('heatmap-gradient') as unknown as HTMLSelectElement;
+  const enabledCheckbox = document.getElementById(
+    'heatmap-enabled'
+  ) as HTMLInputElement;
+  const radiusSlider = document.getElementById(
+    'heatmap-radius'
+  ) as HTMLInputElement;
+  const blurSlider = document.getElementById(
+    'heatmap-blur'
+  ) as HTMLInputElement;
+  const opacitySlider = document.getElementById(
+    'heatmap-opacity'
+  ) as HTMLInputElement;
+  const gradientSelect = document.getElementById(
+    'heatmap-gradient'
+  ) as unknown as HTMLSelectElement;
 
   enabledCheckbox?.addEventListener('change', (e) => {
     const enabled = (e.target as HTMLInputElement).checked;
     store.heatmap.enabled = enabled;
-    import('../tools/heatmap').then(m => m.toggleHeatLayer(enabled));
+    import('../tools/heatmap').then((m) => m.toggleHeatLayer(enabled));
   });
 
   radiusSlider?.addEventListener('input', (e) => {
@@ -689,7 +747,9 @@ function initializeHeatmapControls(): void {
     const el = document.getElementById('heatmap-radius-value');
     if (el) el.textContent = value.toString();
     store.heatmap.options.radius = value;
-    import('../tools/heatmap').then(m => m.updateCurrentHeatOptions({ radius: value }));
+    import('../tools/heatmap').then((m) =>
+      m.updateCurrentHeatOptions({ radius: value })
+    );
   });
 
   blurSlider?.addEventListener('input', (e) => {
@@ -697,7 +757,9 @@ function initializeHeatmapControls(): void {
     const el = document.getElementById('heatmap-blur-value');
     if (el) el.textContent = value.toString();
     store.heatmap.options.blur = value;
-    import('../tools/heatmap').then(m => m.updateCurrentHeatOptions({ blur: value }));
+    import('../tools/heatmap').then((m) =>
+      m.updateCurrentHeatOptions({ blur: value })
+    );
   });
 
   opacitySlider?.addEventListener('input', (e) => {
@@ -705,20 +767,30 @@ function initializeHeatmapControls(): void {
     const el = document.getElementById('heatmap-opacity-value');
     if (el) el.textContent = (value / 100).toString();
     store.heatmap.options.opacity = value / 100;
-    import('../tools/heatmap').then(m => m.updateCurrentHeatOptions({ minOpacity: value / 100 }));
+    import('../tools/heatmap').then((m) =>
+      m.updateCurrentHeatOptions({ minOpacity: value / 100 })
+    );
   });
 
   gradientSelect?.addEventListener('change', (e) => {
-    const value = (e.target as HTMLSelectElement).value as 'default' | 'fire' | 'cold' | 'grayscale';
+    const value = (e.target as HTMLSelectElement).value as
+      | 'default'
+      | 'fire'
+      | 'cold'
+      | 'grayscale';
     store.heatmap.options.gradient = value;
-    import('../tools/heatmap').then(m => m.updateCurrentHeatOptions({ gradient: value }));
+    import('../tools/heatmap').then((m) =>
+      m.updateCurrentHeatOptions({ gradient: value })
+    );
   });
 
   // 隐藏航线复选框
-  const hideRouteCheckbox = document.getElementById('heatmap-hide-route') as HTMLInputElement;
+  const hideRouteCheckbox = document.getElementById(
+    'heatmap-hide-route'
+  ) as HTMLInputElement;
   hideRouteCheckbox?.addEventListener('change', (e) => {
     const hide = (e.target as HTMLInputElement).checked;
-    import('../tools/heatmap').then(m => m.toggleHideRoute(hide));
+    import('../tools/heatmap').then((m) => m.toggleHideRoute(hide));
   });
 }
 
@@ -733,109 +805,32 @@ function initializeSettings(): void {
  * 初始化航线列表
  */
 function initializeRouteList(): void {
-  const searchInput = document.getElementById('route-search') as HTMLInputElement;
-  searchInput?.addEventListener('input', updateRouteList);
+  setRouteSearchQuery(store.uiState.routeSearchQuery);
   updateRouteList();
 }
 
-function getRouteSummary(route: typeof store.routes[number]): string {
-  const vertexCount = getRouteVertexCount(route);
+function getRouteSummary(route: (typeof store.routes)[number]): string {
+  const vertexCount =
+    route.geometryType === 'polygon'
+      ? getPointsForRing(route, 0).length +
+        (route.holes?.reduce((sum, ring) => sum + ring.length, 0) ?? 0)
+      : route.points.length;
+
   if (!isPolygonRoute(route)) {
     return `${vertexCount} 点`;
   }
 
   const holeCount = route.holes?.length ?? 0;
-  return holeCount > 0 ? `${vertexCount} 点 · ${holeCount} 洞` : `${vertexCount} 点 · 多边形`;
+  return holeCount > 0
+    ? `${vertexCount} 点 · ${holeCount} 洞`
+    : `${vertexCount} 点 · 多边形`;
 }
 
 /**
  * 更新航线列表显示
  */
 export function updateRouteList(): void {
-  getEndpointQuickControlRefs();
-
-  const container = document.getElementById('routes-list');
-  if (!container) return;
-
-  const searchQuery = (document.getElementById('route-search') as HTMLInputElement)?.value?.toLowerCase() || '';
-  const filteredRoutes = store.routes.filter(r => r.name.toLowerCase().includes(searchQuery));
-
-  container.innerHTML = '';
-  filteredRoutes.forEach(route => {
-    const item = document.createElement('div');
-    item.className = 'route-item' + (route.selected ? ' selected' : '');
-    item.dataset.id = route.id;
-
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.className = 'route-checkbox';
-    checkbox.checked = route.visible;
-
-    const colorSpan = document.createElement('span');
-    colorSpan.className = 'route-color';
-    colorSpan.style.backgroundColor = route.color;
-
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'route-name';
-    nameSpan.textContent = route.name;
-
-    const typeSpan = document.createElement('span');
-    typeSpan.className = 'route-geometry-tag';
-    typeSpan.textContent = isPolygonRoute(route) ? 'Polygon' : 'Line';
-
-    const pointsSpan = document.createElement('span');
-    pointsSpan.className = 'route-points';
-    pointsSpan.textContent = getRouteSummary(route);
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'route-item-btn delete';
-    deleteBtn.textContent = '×';
-    deleteBtn.title = '删除航线';
-    deleteBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (confirm('确定要删除航线 "' + route.name + '" 吗？')) {
-        import('../routes/index').then(m => {
-          m.deleteRoute(route.id);
-          updateRouteList();
-          updatePropertiesPanel();
-        });
-      }
-    });
-
-    item.appendChild(checkbox);
-    item.appendChild(colorSpan);
-    item.appendChild(nameSpan);
-    item.appendChild(typeSpan);
-    item.appendChild(pointsSpan);
-    item.appendChild(deleteBtn);
-
-    item.addEventListener('click', (e) => {
-      if (!(e.target as HTMLElement).classList.contains('route-checkbox')) {
-        const id = item.dataset.id;
-        if (id) {
-          store.selectRoute(id);
-          updateRouteList();
-          updatePropertiesPanel();
-        }
-      }
-    });
-
-    checkbox.addEventListener('change', () => {
-      const id = item.dataset.id;
-      if (id) {
-        import('../routes/index').then(m => {
-          m.toggleRouteVisibility(id);
-          updateExportBidirectionalControlState();
-        });
-      }
-    });
-
-    container.appendChild(item);
-  });
-
-  const countEl = document.querySelector('.route-count');
-  if (countEl) countEl.textContent = '(' + store.routes.length + ')';
-  updateExportBidirectionalControlState();
+  refreshRouteListView();
 }
 
 /**
@@ -843,7 +838,9 @@ export function updateRouteList(): void {
  */
 function syncEndpointQuickControls(): void {
   const refs = getEndpointQuickControlRefs();
-  const addHoleBtn = document.getElementById('add-hole') as HTMLButtonElement | null;
+  const addHoleBtn = document.getElementById(
+    'add-hole'
+  ) as HTMLButtonElement | null;
   if (!refs) {
     if (addHoleBtn) addHoleBtn.disabled = true;
     return;
@@ -852,7 +849,9 @@ function syncEndpointQuickControls(): void {
   const { controls, startBtn, endBtn } = refs;
   const route = store.getSelectedRoute();
   const isEditable = Boolean(route?.editable);
-  const polygonEditable = Boolean(route && route.editable && isPolygonRoute(route));
+  const polygonEditable = Boolean(
+    route && route.editable && isPolygonRoute(route)
+  );
   controls.hidden = !isEditable || Boolean(route && isPolygonRoute(route));
   if (addHoleBtn) {
     addHoleBtn.hidden = !route || !isPolygonRoute(route);
@@ -882,120 +881,35 @@ function syncEndpointQuickControls(): void {
   const selected = store.selectedPoint;
   const isRouteSelectedPoint = selected && selected.routeId === route.id;
 
-  startBtn.classList.toggle('btn-active', Boolean(isRouteSelectedPoint && selected.pointIdx === 0));
-  endBtn.classList.toggle('btn-active', Boolean(isRouteSelectedPoint && selected.pointIdx === route.points.length - 1));
+  startBtn.classList.toggle(
+    'btn-active',
+    Boolean(isRouteSelectedPoint && selected.pointIdx === 0)
+  );
+  endBtn.classList.toggle(
+    'btn-active',
+    Boolean(
+      isRouteSelectedPoint && selected.pointIdx === route.points.length - 1
+    )
+  );
 }
 
 function selectEndpointQuickly(endpoint: 'start' | 'end'): void {
   const route = store.getSelectedRoute();
   if (!route || !route.editable) return;
 
-  import('../routes/geometry').then(m => {
+  import('../routes/geometry').then((m) => {
     m.selectRouteEndpoint(route.id, endpoint);
   });
 }
 
 export function updatePropertiesPanel(): void {
-  const route = store.getSelectedRoute();
-  const point = store.selectedPoint;
-
-  const routeNameEl = document.getElementById('prop-route-name');
-  const routeTypeEl = document.getElementById('prop-route-type');
-  const routePointsEl = document.getElementById('prop-route-points');
-  const routeHolesEl = document.getElementById('prop-route-holes');
-  const routeLengthEl = document.getElementById('prop-route-length');
-  const routeAreaEl = document.getElementById('prop-route-area');
-  const routeStatusEl = document.getElementById('prop-route-status');
-  const routeLengthLabelEl = document.getElementById('prop-route-length-label');
-
-  if (route) {
-    if (routeNameEl) routeNameEl.textContent = route.name;
-    if (routeTypeEl) routeTypeEl.textContent = isPolygonRoute(route) ? '多边形' : '折线';
-    if (routePointsEl) routePointsEl.textContent = getRouteVertexCount(route).toString();
-    if (routeHolesEl) routeHolesEl.textContent = isPolygonRoute(route) ? String(route.holes?.length ?? 0) : '-';
-    if (routeLengthLabelEl) routeLengthLabelEl.textContent = isPolygonRoute(route) ? '周长' : '长度';
-    if (routeLengthEl) routeLengthEl.textContent = calculateTotalLength(route);
-    if (routeAreaEl) {
-      routeAreaEl.textContent = isPolygonRoute(route)
-        ? formatArea(calculatePolygonArea(route.points, route.holes ?? []))
-        : '-';
-    }
-    if (routeStatusEl) routeStatusEl.textContent = route.editable ? '可编辑' : '只读';
-  } else {
-    if (routeNameEl) routeNameEl.textContent = '-';
-    if (routeTypeEl) routeTypeEl.textContent = '-';
-    if (routePointsEl) routePointsEl.textContent = '-';
-    if (routeHolesEl) routeHolesEl.textContent = '-';
-    if (routeLengthLabelEl) routeLengthLabelEl.textContent = '长度';
-    if (routeLengthEl) routeLengthEl.textContent = '-';
-    if (routeAreaEl) routeAreaEl.textContent = '-';
-    if (routeStatusEl) routeStatusEl.textContent = '-';
-  }
-
-  const pointIndexEl = document.getElementById('prop-point-index');
-  const pointLatEl = document.getElementById('prop-point-lat');
-  const pointLonEl = document.getElementById('prop-point-lon');
-
-  if (point) {
-    const selectedRoute = store.getRouteById(point.routeId);
-    const p = selectedRoute ? getPointsForRing(selectedRoute, point.ringIndex ?? 0)[point.pointIdx] : undefined;
-    if (p && typeof p.lat === 'number' && typeof p.lon === 'number') {
-      if (pointIndexEl) {
-        pointIndexEl.textContent = point.ringIndex !== undefined
-          ? `环 ${point.ringIndex + 1} / 点 ${point.pointIdx + 1}`
-          : point.pointIdx.toString();
-      }
-      if (pointLatEl) pointLatEl.textContent = p.lat.toFixed(6);
-      if (pointLonEl) pointLonEl.textContent = p.lon.toFixed(6);
-    } else {
-      if (pointIndexEl) pointIndexEl.textContent = point.pointIdx.toString();
-      if (pointLatEl) pointLatEl.textContent = '-';
-      if (pointLonEl) pointLonEl.textContent = '-';
-    }
-  } else {
-    if (pointIndexEl) pointIndexEl.textContent = '-';
-    if (pointLatEl) pointLatEl.textContent = '-';
-    if (pointLonEl) pointLonEl.textContent = '-';
-  }
-
-  syncEndpointQuickControls();
-  updateExportBidirectionalControlState();
-}
-
-/**
- * 计算航线总长度
- */
-function formatDistance(totalMeters: number): string {
-  if (totalMeters < 1000) return totalMeters.toFixed(1) + ' m';
-  return (totalMeters / 1000).toFixed(2) + ' km';
-}
-
-function formatArea(areaSqm: number): string {
-  if (areaSqm < 1_000_000) return areaSqm.toFixed(0) + ' m²';
-  return (areaSqm / 1_000_000).toFixed(2) + ' km²';
-}
-
-function calculateRouteBoundaryLength(route: { points: { lat: number; lon: number }[]; holes?: { lat: number; lon: number }[][]; geometryType?: string }): number {
-  if (!isPolygonRoute(route as never)) {
-    return calculateLineLength(route.points);
-  }
-
-  return calculateRingPerimeter(route.points) + (route.holes ?? []).reduce((sum, ring) => sum + calculateRingPerimeter(ring), 0);
-}
-
-function calculateTotalLength(route: { points: { lat: number; lon: number }[]; holes?: { lat: number; lon: number }[][]; geometryType?: string }): string {
-  return formatDistance(calculateRouteBoundaryLength(route));
+  refreshPropertiesView();
 }
 
 /**
  * 更新状态栏
  */
 function updateStatusBar(): void {
-  const routeCountEl = document.getElementById('status-route-count');
-  const pointCountEl = document.getElementById('status-point-count');
-  const selectionEl = document.getElementById('status-selection');
-
-  if (routeCountEl) routeCountEl.textContent = store.routes.length + ' 航线';
-  if (pointCountEl) pointCountEl.textContent = store.getTotalPoints() + ' 点';
-  if (selectionEl) selectionEl.textContent = store.selectedRouteId ? '已选中' : '未选中';
+  clearStatusMessage();
+  refreshStatusSummary();
 }

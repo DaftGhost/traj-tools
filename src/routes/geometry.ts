@@ -21,6 +21,7 @@ import {
   visvalingamWhyattIndices,
 } from '../utils/geo';
 import { buildMarkerIcon } from '../utils/markerIcon';
+import { setStatus } from '../utils/uiStatus';
 import * as L from 'leaflet';
 
 type RingSelection = {
@@ -541,11 +542,8 @@ function createDragMarker(
   selectRoutePoint(route, ringIndex, pointIdx);
   updatePropertiesPanel();
 
-  const statusEl = document.getElementById('status-selection');
-  if (statusEl) {
-    const ringLabel = isPolygonRoute(route) ? `（环 ${ringIndex + 1}）` : '';
-    statusEl.textContent = `选中节点: ${pointIdx + 1}${ringLabel}`;
-  }
+  const ringLabel = isPolygonRoute(route) ? `（环 ${ringIndex + 1}）` : '';
+  setStatus(`选中节点: ${pointIdx + 1}${ringLabel}`);
 
   dragMarker.on('dragstart', () => {
     const ring = getPointsForRing(route, ringIndex);

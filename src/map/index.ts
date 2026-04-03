@@ -11,6 +11,7 @@ import {
   tiandituAvailable,
 } from './layers';
 import { refreshAllRouteDisplayGeometry } from '../routes/geometry';
+import { updateStatusCoordsText, updateStatusZoomText } from '../ui/viewBridge';
 
 // 修复 Leaflet 图标问题
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)
@@ -81,20 +82,14 @@ function bindMapEvents(): void {
  * 更新状态栏坐标显示
  */
 function updateStatusCoords(lat: number, lon: number): void {
-  const el = document.getElementById('status-coords');
-  if (el) {
-    el.textContent = lat.toFixed(4) + ', ' + lon.toFixed(4);
-  }
+  updateStatusCoordsText(lat, lon);
 }
 
 /**
  * 更新状态栏缩放级别显示
  */
 function updateStatusZoom(zoom: number): void {
-  const el = document.getElementById('status-zoom');
-  if (el) {
-    el.textContent = 'Zoom: ' + zoom;
-  }
+  updateStatusZoomText(zoom);
 }
 
 /**

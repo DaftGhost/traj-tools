@@ -17,12 +17,14 @@
     "beforeAll": "readonly",
     "afterAll": "readonly"
   },
-  "parser": "@typescript-eslint/parser",
-  "plugins": ["@typescript-eslint"],
-  "extends": "eslint:recommended",
+  "parser": "vue-eslint-parser",
+  "plugins": ["@typescript-eslint", "vue"],
+  "extends": ["eslint:recommended", "plugin:vue/essential"],
   "parserOptions": {
+    "parser": "@typescript-eslint/parser",
     "ecmaVersion": "latest",
-    "sourceType": "module"
+    "sourceType": "module",
+    "extraFileExtensions": [".vue"]
   },
   "rules": {
     "indent": ["off"],
@@ -34,6 +36,7 @@
     "no-console": ["off"],
     "no-undef": ["off"],
     "no-inner-declarations": ["off"],
-    "no-constant-condition": ["error", { "checkLoops": false }]
+    "no-constant-condition": ["error", { "checkLoops": false }],
+    "vue/multi-word-component-names": ["off"]
   }
 }

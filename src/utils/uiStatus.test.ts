@@ -4,28 +4,20 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { resetViewBridgeStateForTests, uiViewState } from '../ui/viewBridge';
 
 describe('utils/uiStatus', () => {
   beforeEach(() => {
-    // Create fresh DOM elements for each test
-    document.body.innerHTML = '';
-    const selectionEl = document.createElement('div');
-    selectionEl.id = 'status-selection';
-    document.body.appendChild(selectionEl);
-
-    const coordsEl = document.createElement('div');
-    coordsEl.id = 'status-coords';
-    document.body.appendChild(coordsEl);
+    resetViewBridgeStateForTests();
   });
 
   describe('setStatus', () => {
-    it('should update status-selection element', async () => {
+    it('should update the bridge status message', async () => {
       const { setStatus } = await import('./uiStatus');
 
       setStatus('Test message');
 
-      const el = document.getElementById('status-selection');
-      expect(el?.textContent).toBe('Test message');
+      expect(uiViewState.statusMessage).toBe('Test message');
     });
 
     it('should handle empty messages', async () => {
@@ -33,18 +25,17 @@ describe('utils/uiStatus', () => {
 
       setStatus('');
 
-      const el = document.getElementById('status-selection');
-      expect(el?.textContent).toBe('');
+      expect(uiViewState.statusMessage).toBe('');
     });
 
     it('should handle long messages', async () => {
       const { setStatus } = await import('./uiStatus');
-      const longMessage = 'This is a very long status message that might cause overflow issues';
+      const longMessage =
+        'This is a very long status message that might cause overflow issues';
 
       setStatus(longMessage);
 
-      const el = document.getElementById('status-selection');
-      expect(el?.textContent).toBe(longMessage);
+      expect(uiViewState.statusMessage).toBe(longMessage);
     });
 
     it('should handle Chinese characters', async () => {
@@ -52,8 +43,7 @@ describe('utils/uiStatus', () => {
 
       setStatus('测试消息：航线已加载');
 
-      const el = document.getElementById('status-selection');
-      expect(el?.textContent).toBe('测试消息：航线已加载');
+      expect(uiViewState.statusMessage).toBe('测试消息：航线已加载');
     });
 
     it('should handle Unicode emoji', async () => {
@@ -61,8 +51,7 @@ describe('utils/uiStatus', () => {
 
       setStatus('Status with emoji 🚀');
 
-      const el = document.getElementById('status-selection');
-      expect(el?.textContent).toBe('Status with emoji 🚀');
+      expect(uiViewState.statusMessage).toBe('Status with emoji 🚀');
     });
   });
 
@@ -70,10 +59,9 @@ describe('utils/uiStatus', () => {
     it('should format coordinates with 4 decimal places', async () => {
       const { updateStatusCoords } = await import('./uiStatus');
 
-      updateStatusCoords(30.12345, 120.67890);
+      updateStatusCoords(30.12345, 120.6789);
 
-      const el = document.getElementById('status-coords');
-      expect(el?.textContent).toBe('30.1234, 120.6789');
+      expect(uiViewState.coordsText).toBe('30.1234, 120.6789');
     });
 
     it('should handle negative coordinates', async () => {
@@ -81,8 +69,7 @@ describe('utils/uiStatus', () => {
 
       updateStatusCoords(-30.5, -120.25);
 
-      const el = document.getElementById('status-coords');
-      expect(el?.textContent).toBe('-30.5000, -120.2500');
+      expect(uiViewState.coordsText).toBe('-30.5000, -120.2500');
     });
 
     it('should handle zero coordinates', async () => {
@@ -90,8 +77,7 @@ describe('utils/uiStatus', () => {
 
       updateStatusCoords(0, 0);
 
-      const el = document.getElementById('status-coords');
-      expect(el?.textContent).toBe('0.0000, 0.0000');
+      expect(uiViewState.coordsText).toBe('0.0000, 0.0000');
     });
 
     it('should handle large decimal values', async () => {
@@ -99,8 +85,7 @@ describe('utils/uiStatus', () => {
 
       updateStatusCoords(89.999999, 179.999999);
 
-      const el = document.getElementById('status-coords');
-      expect(el?.textContent).toBe('90.0000, 180.0000');
+      expect(uiViewState.coordsText).toBe('90.0000, 180.0000');
     });
 
     it('should handle very small decimal values', async () => {
@@ -108,24 +93,23 @@ describe('utils/uiStatus', () => {
 
       updateStatusCoords(0.00001, 0.00001);
 
-      const el = document.getElementById('status-coords');
-      expect(el?.textContent).toBe('0.0000, 0.0000');
+      expect(uiViewState.coordsText).toBe('0.0000, 0.0000');
     });
   });
 
-  describe('DOM element absence', () => {
-    it('setStatus should not throw when element is missing', async () => {
-      document.body.innerHTML = '';
+  describe('bridge updates', () => {
+    it('setStatus should not depend on DOM elements', async () => {
       const { setStatus } = await import('./uiStatus');
 
       expect(() => setStatus('test')).not.toThrow();
+      expect(uiViewState.statusMessage).toBe('test');
     });
 
-    it('updateStatusCoords should not throw when element is missing', async () => {
-      document.body.innerHTML = '';
+    it('updateStatusCoords should not depend on DOM elements', async () => {
       const { updateStatusCoords } = await import('./uiStatus');
 
       expect(() => updateStatusCoords(30, 120)).not.toThrow();
+      expect(uiViewState.coordsText).toBe('30.0000, 120.0000');
     });
   });
 });
