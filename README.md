@@ -36,59 +36,66 @@ A web-based trajectory/route editing tool built with Leaflet and TypeScript. Imp
 
 ### Prerequisites
 
-- Node.js 18+
-- npm or yarn
+- Bun 1.3+
+- Node.js 18+ (runtime/tooling compatibility for the underlying ecosystem)
 - Cloudflare Wrangler (for Worker development)
 
 ### Installation
 
 ```bash
 # Install dependencies
-npm install
+bun install
 ```
 
 ### Development
 
 **Frontend only (Vite):**
+
 ```bash
-npm run dev
+bun run dev
 ```
-Access at http://localhost:5173
+
+Access at http://localhost:3000
 
 **Full dev with Worker proxy:**
+
 ```bash
-npm run dev:worker
+bun run dev:worker
 ```
+
 Access at http://localhost:8787 (includes Tianditu tile proxy)
 
 ### Build
 
 ```bash
 # Type-check and bundle
-npm run build
+bun run build
 ```
 
 ### Testing
 
 ```bash
 # Run tests once
-npm run test
+bun run test
 
 # Watch mode
-npm run test:watch
+bun run test:watch
 
 # UI mode
-npm run test:ui
+bun run test:ui
+
+# Run one test file
+bun run test -- src/routes/geometry.test.ts
 ```
 
 ### Linting & Formatting
 
 ```bash
 # Lint
-npm run lint
+bun run lint
 
 # Format
-npm run format
+bun run format
 ```
 
 ## Deployment
@@ -97,13 +104,15 @@ npm run format
 
 ```bash
 # Build and deploy
-npm run deploy
+bun run deploy
 ```
 
 **Required environment variables:**
+
 - `TIANDITU_API_KEY` - API key for Tianditu map tiles (server-side only)
 
 **Local development:** Set in `.dev.vars`:
+
 ```
 TIANDITU_API_KEY=your_key_here
 ```
@@ -145,41 +154,44 @@ traj-tools/
 
 ## Technology Stack
 
-| Category | Technology |
-|----------|------------|
+| Category | Technology           |
+| -------- | -------------------- |
 | Frontend | TypeScript 5, Vite 5 |
-| Maps | Leaflet 1.9 |
-| Backend | Cloudflare Workers |
-| Testing | Vitest 1.1 |
-| Linting | ESLint, Prettier |
+| Maps     | Leaflet 1.9          |
+| Backend  | Cloudflare Workers   |
+| Testing  | Vitest 1.1           |
+| Linting  | ESLint, Prettier     |
 
 ## Architecture
 
 **Dual Runtime:**
+
 - **Browser SPA**: Vite + TypeScript frontend with Leaflet
 - **Cloudflare Worker**: Tianditu tile proxy + SPA asset serving
 
 **State Management:**
+
 - Singleton `store` in `src/state/store.ts`
 - Callback injection for UI refresh (`setUIRefreshFunctions`)
 
 **Key Patterns:**
+
 - Side-effect driven module initialization
 - Zoom-dependent Douglas-Peucker simplification
 - Cache-first tile proxy strategy
 
 ## Commands Reference
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Vite dev server (frontend only) |
-| `npm run dev:worker` | Wrangler dev (includes API proxy) |
-| `npm run build` | Type-check + bundle |
-| `npm run preview` | Preview built frontend |
-| `npm run deploy` | Build + Cloudflare deploy |
-| `npm run test` | Run tests once |
-| `npm run lint` | ESLint check |
-| `npm run format` | Prettier format |
+| Command              | Description                       |
+| -------------------- | --------------------------------- |
+| `bun run dev`        | Vite dev server (frontend only)   |
+| `bun run dev:worker` | Wrangler dev (includes API proxy) |
+| `bun run build`      | Type-check + bundle               |
+| `bun run preview`    | Preview built frontend            |
+| `bun run deploy`     | Build + Cloudflare deploy         |
+| `bun run test`       | Run tests once                    |
+| `bun run lint`       | ESLint check                      |
+| `bun run format`     | Prettier format                   |
 
 ## License
 

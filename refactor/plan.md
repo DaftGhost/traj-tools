@@ -3,6 +3,7 @@
 ## Initial State Analysis
 
 ### Current Architecture
+
 - **Type**: Vite + TypeScript SPA with Leaflet
 - **Modules**: map, routes, tools, ui, state, utils, export, import
 - **State Pattern**: Singleton `store` in `src/state/store.ts`
@@ -10,15 +11,15 @@
 
 ### Problem Areas Identified
 
-| Issue | Files | Severity |
-|-------|-------|----------|
-| Duplicate `Point` interface | `store.ts`, `geo.ts` | Medium |
-| Duplicate `setStatus` functions | `draw.ts`, `heatmap.ts`, `segment.ts` | Low |
-| Duplicate `snapToRoutes` logic | `measure.ts`, `segment.ts` | High |
-| Duplicate `distanceToSegment` logic | `geometry.ts`, `segment.ts` | High |
-| Magic numbers (e.g., `12 * metersPerPx`) | `segment.ts:584` | Low |
-| Excessive `as unknown as` type assertions | `heatmap.ts` | Medium |
-| Duplicate `MeasureRef`/`SegmentRef` interfaces | `measure.ts`, `segment.ts` | Medium |
+| Issue                                          | Files                                 | Severity |
+| ---------------------------------------------- | ------------------------------------- | -------- |
+| Duplicate `Point` interface                    | `store.ts`, `geo.ts`                  | Medium   |
+| Duplicate `setStatus` functions                | `draw.ts`, `heatmap.ts`, `segment.ts` | Low      |
+| Duplicate `snapToRoutes` logic                 | `measure.ts`, `segment.ts`            | High     |
+| Duplicate `distanceToSegment` logic            | `geometry.ts`, `segment.ts`           | High     |
+| Magic numbers (e.g., `12 * metersPerPx`)       | `segment.ts:584`                      | Low      |
+| Excessive `as unknown as` type assertions      | `heatmap.ts`                          | Medium   |
+| Duplicate `MeasureRef`/`SegmentRef` interfaces | `measure.ts`, `segment.ts`            | Medium   |
 
 ## Refactoring Tasks
 
@@ -65,25 +66,25 @@ utils/uiStatus.ts → tools/draw.ts, tools/heatmap.ts, tools/segment.ts
 
 ## Validation Checklist
 
-- [ ] All tests pass (`npm test`)
-- [ ] Build succeeds (`npm run build`)
-- [ ] Type checking clean (`npx tsc --noEmit`)
+- [ ] All tests pass (`bun run test`)
+- [ ] Build succeeds (`bun run build`)
+- [ ] Type checking clean (`bunx tsc --noEmit`)
 - [ ] No broken imports
 - [ ] No orphaned code
-- [ ] Linting passes (`npm run lint`)
+- [ ] Linting passes (`bun run lint`)
 
 ## De-Para Mapping
 
-| Before | After | Status |
-|--------|-------|--------|
-| `utils/geo.ts` Point | Re-export from `store.ts` | Pending |
-| `draw.ts` setStatus | Use `utils/uiStatus.ts` | Pending |
-| `heatmap.ts` setStatus | Use `utils/uiStatus.ts` | Pending |
-| `segment.ts` setStatus | Use `utils/uiStatus.ts` | Pending |
-| `measure.ts` snapToRoutes | Move to `utils/snap.ts` | Pending |
-| `segment.ts` snapToRoutes | Import from `utils/snap.ts` | Pending |
-| `geometry.ts` distanceToSegment | Move to `utils/geo.ts` | Pending |
-| `segment.ts` pointToSegmentDistance | Import from `utils/geo.ts` | Pending |
+| Before                              | After                       | Status  |
+| ----------------------------------- | --------------------------- | ------- |
+| `utils/geo.ts` Point                | Re-export from `store.ts`   | Pending |
+| `draw.ts` setStatus                 | Use `utils/uiStatus.ts`     | Pending |
+| `heatmap.ts` setStatus              | Use `utils/uiStatus.ts`     | Pending |
+| `segment.ts` setStatus              | Use `utils/uiStatus.ts`     | Pending |
+| `measure.ts` snapToRoutes           | Move to `utils/snap.ts`     | Pending |
+| `segment.ts` snapToRoutes           | Import from `utils/snap.ts` | Pending |
+| `geometry.ts` distanceToSegment     | Move to `utils/geo.ts`      | Pending |
+| `segment.ts` pointToSegmentDistance | Import from `utils/geo.ts`  | Pending |
 
 ## Execution Order
 

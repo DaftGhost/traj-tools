@@ -49,20 +49,22 @@ src/
 ## 本地开发
 
 1. 创建 `.dev.vars` 文件：
+
    ```
    TIANDITU_API_KEY=你的天地图密钥
    ```
 
 2. 运行本地开发服务器：
    ```bash
-   npm run dev:worker
+   bun run dev:worker
    ```
 
 ## 生产部署
 
 1. 设置 Cloudflare Secrets：
+
    ```bash
-   npx wrangler secret put TIANDITU_API_KEY
+   bunx wrangler secret put TIANDITU_API_KEY
    ```
 
 2. 或在 Cloudflare Dashboard 配置：
@@ -71,40 +73,42 @@ src/
 
 ## 命令
 
-| 命令 | 说明 |
-|------|------|
-| `npm install` | 安装依赖 |
-| `npm run build` | 构建 SPA |
-| `npm run dev` | Vite 开发服务器（不含 Worker） |
-| `npm run dev:worker` | 本地 Worker 开发服务器 |
-| `npm run deploy` | 构建并部署到 Cloudflare |
-| `npm test` | 运行测试 |
-| `npm run test:watch` | 监听模式运行测试 |
+| 命令                 | 说明                           |
+| -------------------- | ------------------------------ |
+| `bun install`        | 安装依赖                       |
+| `bun run build`      | 构建 SPA                       |
+| `bun run dev`        | Vite 开发服务器（不含 Worker） |
+| `bun run dev:worker` | 本地 Worker 开发服务器         |
+| `bun run deploy`     | 构建并部署到 Cloudflare        |
+| `bun run test`       | 运行测试                       |
+| `bun run test:watch` | 监听模式运行测试               |
 
 ## 测试
 
 项目使用 Vitest 进行测试，测试文件位于各模块目录下：
 
-| 测试文件 | 覆盖模块 |
-|---------|---------|
-| `src/utils/helpers.test.ts` | 辅助函数 |
-| `src/utils/uiStatus.test.ts` | UI 状态工具 |
-| `src/utils/snap.test.ts` | 吸附工具 |
-| `src/types/heatLayer.test.ts` | 热力图类型 |
-| `src/ui/commandDefinitions.test.ts` | 命令定义 |
-| `src/routes/index.test.ts` | 航线操作 |
-| `src/export/index.test.ts` | 导出功能 |
+| 测试文件                            | 覆盖模块    |
+| ----------------------------------- | ----------- |
+| `src/utils/helpers.test.ts`         | 辅助函数    |
+| `src/utils/uiStatus.test.ts`        | UI 状态工具 |
+| `src/utils/snap.test.ts`            | 吸附工具    |
+| `src/types/heatLayer.test.ts`       | 热力图类型  |
+| `src/ui/commandDefinitions.test.ts` | 命令定义    |
+| `src/routes/index.test.ts`          | 航线操作    |
+| `src/export/index.test.ts`          | 导出功能    |
 
 运行测试：
+
 ```bash
-npm test        # 运行所有测试
-npm run test:watch  # 监听模式
-npx vitest run src/utils/snap.test.ts  # 运行单个文件
+bun run test        # 运行所有测试
+bun run test:watch  # 监听模式
+bun run test -- src/utils/snap.test.ts  # 运行单个文件
 ```
 
 ## 天地图密钥类型
 
 注意：天地图密钥分为"浏览器端"和"服务端"两种类型：
+
 - **浏览器端密钥**：仅能在客户端 JavaScript 中使用
 - **服务端密钥**：可在服务器端（如 Worker 代理）使用
 

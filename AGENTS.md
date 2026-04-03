@@ -14,7 +14,7 @@ This file reflects the repository state verified on 2026-04-03.
 ## Repository Snapshot
 
 - Stack: Vite 5, TypeScript 5, Vue 3, Vitest 1, Leaflet 1.9, Cloudflare Workers.
-- Package manager: `npm`.
+- Package manager: `bun`.
 - Frontend entrypoint: `src/main.ts`; worker entrypoint: `src/worker.ts`.
 - Main application shell and layout live in `src/App.vue` and `src/components/`.
 - Central mutable state singleton: `src/state/store.ts`.
@@ -25,39 +25,39 @@ This file reflects the repository state verified on 2026-04-03.
 
 ## Install And Dev Commands
 
-- Install dependencies: `npm install`
-- Frontend dev server: `npm run dev` on port `3000`
-- Worker dev server: `npm run dev:worker`
-- Preview production build: `npm run preview`; deploy frontend + worker: `npm run deploy`
+- Install dependencies: `bun install`
+- Frontend dev server: `bun run dev` on port `3000`
+- Worker dev server: `bun run dev:worker`
+- Preview production build: `bun run preview`; deploy frontend + worker: `bun run deploy`
 
 ## Build, Lint, And Format Commands
 
-- Production build + type check: `npm run build`
-- Alias of build: `npm run build:all`
-- Lint: `npm run lint` (`eslint src --ext ts`, so it only targets TypeScript under `src/`)
-- Format: `npm run format` (`prettier --write src`, so it only formats files under `src/`)
+- Production build + type check: `bun run build`
+- Alias of build: `bun run build:all`
+- Lint: `bun run lint` (`eslint src --ext ts`, so it only targets TypeScript under `src/`)
+- Format: `bun run format` (`prettier --write src`, so it only formats files under `src/`)
 
 ## Test Commands
 
-- Run all tests once: `npm run test`; watch mode: `npm run test:watch`; Vitest UI: `npm run test:ui`
-- Run one test file: `npm run test -- src/routes/geometry.test.ts`
-- Run one named test: `npm run test -- src/utils/helpers.test.ts -t "should swap English \"left\" to \"right\""`
-- Another useful single-file example: `npm run test -- src/ui/index.test.ts`
+- Run all tests once: `bun run test`; watch mode: `bun run test:watch`; Vitest UI: `bun run test:ui`
+- Run one test file: `bun run test -- src/routes/geometry.test.ts`
+- Run one named test: `bun run test -- src/utils/helpers.test.ts -t "should swap English \"left\" to \"right\""`
+- Another useful single-file example: `bun run test -- src/ui/index.test.ts`
 
 ## Verified Command Status
 
-- `npm run test` passes; current verified Vitest result is 11 test files and 128 tests. `npm run test -- src/routes/geometry.test.ts` also passes.
-- `npm run build` passes and performs TypeScript validation because it runs `tsc && vite build`.
-- `npm run build` emits Vite warnings about modules that are both statically and dynamically imported, but the build still succeeds. There is no standalone `typecheck` script.
-- `npm run lint` now passes after enabling `@typescript-eslint/parser` and cleaning up the resulting real rule violations.
+- `bun run test` passes; current verified Vitest result is 11 test files and 128 tests. `bun run test -- src/routes/geometry.test.ts` also passes.
+- `bun run build` passes and performs TypeScript validation because it runs `tsc && vite build`.
+- `bun run build` emits Vite warnings about modules that are both statically and dynamically imported, but the build still succeeds. There is no standalone `typecheck` script.
+- `bun run lint` now passes after enabling `@typescript-eslint/parser` and cleaning up the resulting real rule violations.
 
 ## Validation Expectations For Agents
 
-- For any TypeScript change, run `npm run build` before finishing.
-- Run `npm run lint` when you touch linted TypeScript files or ESLint config.
+- For any TypeScript change, run `bun run build` before finishing.
+- Run `bun run lint` when you touch linted TypeScript files or ESLint config.
 - For behavior changes, run the narrowest relevant test file first.
-- For route geometry, import/export, or shared UI/store changes, run `npm run test` before finishing.
-- If you modify lint config, re-run `npm run lint` and report the real result.
+- For route geometry, import/export, or shared UI/store changes, run `bun run test` before finishing.
+- If you modify lint config, re-run `bun run lint` and report the real result.
 - Do not claim lint passes unless you actually ran it successfully.
 
 ## Imports And Module Boundaries
@@ -150,6 +150,6 @@ This file reflects the repository state verified on 2026-04-03.
 - Read the relevant module and its colocated tests first.
 - Make the smallest correct change.
 - Run the narrowest relevant test file.
-- Run `npm run build` for final TypeScript validation.
-- Run `npm run test` for broader behavior changes.
+- Run `bun run build` for final TypeScript validation.
+- Run `bun run test` for broader behavior changes.
 - Report command results honestly, especially the current lint caveat.
