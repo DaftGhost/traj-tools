@@ -3,7 +3,7 @@
  */
 
 import * as L from 'leaflet';
-import { store, Point, getPointsForRing, isPolygonRoute } from '../state/store';
+import { store, getPointsForRing, isPolygonRoute } from '../state/store';
 import { haversineDistance } from '../utils/geo';
 import { distanceMeters, snapToRoutes } from '../utils/snap';
 import type { SnapRef } from '../types/refs';
@@ -15,7 +15,6 @@ let measureLine: L.Polyline | null = null;
 let measureMarkers: L.CircleMarker[] = [];
 let measureHover: MeasurePoint | null = null;
 let measureLayer: L.LayerGroup | null = null;
-let animationFrameId: number | null = null;
 
 /** 测距点，包含吸附信息 */
 interface MeasurePoint {
@@ -79,7 +78,7 @@ export function clearMeasure(): void {
     store.map?.removeLayer(measureLine);
     measureLine = null;
   }
-  measureMarkers.forEach(m => store.map?.removeLayer(m));
+  measureMarkers.forEach((m) => store.map?.removeLayer(m));
   measureMarkers = [];
   // 清除测距图层内容
   if (measureLayer) {
@@ -95,8 +94,12 @@ export function clearMeasure(): void {
 export function addMeasurePoint(latlng: L.LatLng): void {
   if (!measureMode) return;
 
-  const snapEnabled = (document.getElementById('measure-snap-enabled') as HTMLInputElement)?.checked;
-  const snapSelectedOnly = (document.getElementById('measure-snap-selected-only') as HTMLInputElement)?.checked;
+  const snapEnabled = (
+    document.getElementById('measure-snap-enabled') as HTMLInputElement
+  )?.checked;
+  const snapSelectedOnly = (
+    document.getElementById('measure-snap-selected-only') as HTMLInputElement
+  )?.checked;
 
   let point: MeasurePoint = { lat: latlng.lat, lon: latlng.lng, ref: null };
 
@@ -136,13 +139,20 @@ function updateMeasureHover(latlng: L.LatLng): void {
     return;
   }
 
-  const snapEnabled = (document.getElementById('measure-snap-enabled') as HTMLInputElement)?.checked;
-  const snapSelectedOnly = (document.getElementById('measure-snap-selected-only') as HTMLInputElement)?.checked;
+  const snapEnabled = (
+    document.getElementById('measure-snap-enabled') as HTMLInputElement
+  )?.checked;
+  const snapSelectedOnly = (
+    document.getElementById('measure-snap-selected-only') as HTMLInputElement
+  )?.checked;
 
-  let hoverPoint: MeasurePoint = { lat: latlng.lat, lon: latlng.lng, ref: null };
+  let hoverPoint: MeasurePoint = {
+    lat: latlng.lat,
+    lon: latlng.lng,
+    ref: null,
+  };
 
   if (snapEnabled) {
-    const preferRouteId = snapSelectedOnly ? store.selectedRouteId || undefined : undefined;
     const snapped = snapToRoutes(latlng, snapSelectedOnly);
     if (snapped) {
       hoverPoint = { lat: snapped.lat, lon: snapped.lon, ref: snapped.ref };
@@ -156,8 +166,16 @@ function updateMeasureHover(latlng: L.LatLng): void {
 /**
  * 获取两点之间的沿线距离
  */
-function getAlongRouteDistanceMeters(ref1: SnapRef | null, ref2: SnapRef | null): { meters: number; routeName: string } | null {
-  if (!ref1 || !ref2 || ref1.routeId !== ref2.routeId || (ref1.ringIndex ?? 0) !== (ref2.ringIndex ?? 0)) {
+function getAlongRouteDistanceMeters(
+  ref1: SnapRef | null,
+  ref2: SnapRef | null
+): { meters: number; routeName: string } | null {
+  if (
+    !ref1 ||
+    !ref2 ||
+    ref1.routeId !== ref2.routeId ||
+    (ref1.ringIndex ?? 0) !== (ref2.ringIndex ?? 0)
+  ) {
     return null;
   }
 
@@ -172,7 +190,12 @@ function getAlongRouteDistanceMeters(ref1: SnapRef | null, ref2: SnapRef | null)
     return null;
   }
 
-  if (ref1.segIdx < 0 || ref2.segIdx < 0 || ref1.segIdx >= ring.length || ref2.segIdx >= ring.length) {
+  if (
+    ref1.segIdx < 0 ||
+    ref2.segIdx < 0 ||
+    ref1.segIdx >= ring.length ||
+    ref2.segIdx >= ring.length
+  ) {
     return null;
   }
 
@@ -180,15 +203,18 @@ function getAlongRouteDistanceMeters(ref1: SnapRef | null, ref2: SnapRef | null)
     updateRouteDistanceCache(route);
   }
 
-  const cache = ringIndex === 0 ? route._distCache : route._holeDistCaches?.[ringIndex - 1];
+  const cache =
+    ringIndex === 0 ? route._distCache : route._holeDistCaches?.[ringIndex - 1];
   if (!cache) return null;
 
   const segment1 = getRouteSegment(route, ref1.segIdx, ringIndex);
   const segment2 = getRouteSegment(route, ref2.segIdx, ringIndex);
   if (!segment1 || !segment2) return null;
 
-  const seg1Meters = haversineDistance(segment1.start, segment1.end) * ref1.segFrac;
-  const seg2Meters = haversineDistance(segment2.start, segment2.end) * ref2.segFrac;
+  const seg1Meters =
+    haversineDistance(segment1.start, segment1.end) * ref1.segFrac;
+  const seg2Meters =
+    haversineDistance(segment2.start, segment2.end) * ref2.segFrac;
   const pos1 = (cache[ref1.segIdx] ?? 0) + seg1Meters;
   const pos2 = (cache[ref2.segIdx] ?? 0) + seg2Meters;
   const diff = Math.abs(pos1 - pos2);
@@ -198,7 +224,10 @@ function getAlongRouteDistanceMeters(ref1: SnapRef | null, ref2: SnapRef | null)
   }
 
   const perimeter = cache[ring.length] ?? diff;
-  return { meters: Math.min(diff, Math.max(0, perimeter - diff)), routeName: route.name };
+  return {
+    meters: Math.min(diff, Math.max(0, perimeter - diff)),
+    routeName: route.name,
+  };
 }
 
 /**
@@ -209,8 +238,10 @@ function renderMeasure(): void {
 
   measureLayer.clearLayers();
 
-  const fixed = measurePoints.map(p => L.latLng(p.lat, p.lon));
-  const hover = measureHover ? L.latLng(measureHover.lat, measureHover.lon) : null;
+  const fixed = measurePoints.map((p) => L.latLng(p.lat, p.lon));
+  const hover = measureHover
+    ? L.latLng(measureHover.lat, measureHover.lon)
+    : null;
 
   // 绘制固定点 marker
   fixed.forEach((ll) => {
@@ -219,13 +250,15 @@ function renderMeasure(): void {
       fillColor: '#7c3aed',
       color: '#fff',
       weight: 2,
-      fillOpacity: 0.9
+      fillOpacity: 0.9,
     }).addTo(measureLayer!);
   });
 
   // 绘制固定折线
   if (fixed.length >= 2) {
-    L.polyline(fixed, { color: '#7c3aed', weight: 3, opacity: 0.95 }).addTo(measureLayer!);
+    L.polyline(fixed, { color: '#7c3aed', weight: 3, opacity: 0.95 }).addTo(
+      measureLayer!
+    );
 
     // 每段的距离标签
     for (let i = 0; i < fixed.length - 1; i++) {
@@ -259,7 +292,7 @@ function renderMeasure(): void {
       color: '#7c3aed',
       weight: 2,
       opacity: 0.6,
-      dashArray: '6 6'
+      dashArray: '6 6',
     }).addTo(measureLayer!);
 
     const mid = L.latLng((a.lat + b.lat) / 2, (a.lon + b.lon) / 2);

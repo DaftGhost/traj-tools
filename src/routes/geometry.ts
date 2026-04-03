@@ -10,7 +10,6 @@ import {
   SmoothDragContext,
   SmoothDragItem,
   getPointsForRing,
-  setPointsForRing,
   getRouteGeometryType,
   isPolygonRoute,
 } from '../state/store';
@@ -35,8 +34,6 @@ let smoothDragContext: SmoothDragContext | null = null;
 // 临时拖拽标记（不创建大量 markers，只创建一个拖拽手柄）
 let dragMarker: L.Marker | null = null;
 let dragRouteId: string | null = null;
-let dragPointIdx: number = -1;
-let dragRingIndex = 0;
 
 function ensureDisplay(route: Route): NonNullable<Route['_display']> {
   if (!route._display) {
@@ -56,22 +53,6 @@ function ensureDisplay(route: Route): NonNullable<Route['_display']> {
 function invalidateRouteDistanceCaches(route: Route): void {
   route._distCache = undefined;
   route._holeDistCaches = undefined;
-}
-
-function getDisplayRing(route: Route, ringIndex: number): Point[] {
-  if (ringIndex === 0) {
-    return route._display?.simplified ?? route.points;
-  }
-
-  return (
-    route._display?.holes?.[ringIndex - 1] ?? route.holes?.[ringIndex - 1] ?? []
-  );
-}
-
-function getRouteRingsForDisplay(route: Route): Point[][] {
-  const rings = [route._display?.simplified ?? route.points];
-  const displayHoles = route._display?.holes ?? route.holes ?? [];
-  return rings.concat(displayHoles);
 }
 
 function getLatLngArrayForRing(
@@ -238,32 +219,6 @@ export function getRouteSegment(
     end: points[nextIdx],
     closed,
   };
-}
-
-function getDisplayLatLngs(
-  route: Route
-): L.LatLngExpression[] | L.LatLngExpression[][] {
-  const outer = route._display?.simplified ?? route.points;
-  const outerLatLngs = outer.map(
-    (point) => [point.lat, point.lon] as L.LatLngExpression
-  );
-
-  if (!isPolygonRoute(route)) {
-    return outerLatLngs;
-  }
-
-  const holes = route._display?.holes ?? route.holes ?? [];
-  const holeLatLngs = holes
-    .map((ring) =>
-      ring.map((point) => [point.lat, point.lon] as L.LatLngExpression)
-    )
-    .filter((ring) => ring.length >= 3);
-
-  if (holeLatLngs.length === 0) {
-    return outerLatLngs;
-  }
-
-  return [outerLatLngs, ...holeLatLngs];
 }
 
 /**
@@ -576,8 +531,6 @@ function createDragMarker(
   }
 
   dragRouteId = route.id;
-  dragPointIdx = pointIdx;
-  dragRingIndex = ringIndex;
 
   dragMarker = L.marker(position, {
     draggable: true,
@@ -627,8 +580,6 @@ function createDragMarker(
     }
 
     dragRouteId = null;
-    dragPointIdx = -1;
-    dragRingIndex = 0;
     store.clearEditHandle();
 
     updateRouteDisplayGeometry(route);
@@ -659,8 +610,6 @@ export function clearDragMarker(): void {
   }
 
   dragRouteId = null;
-  dragPointIdx = -1;
-  dragRingIndex = 0;
   smoothDragContext = null;
   store.clearEditHandle();
 }

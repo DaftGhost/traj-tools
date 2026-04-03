@@ -6,9 +6,6 @@
 import { PALETTE } from '../config/constants';
 import type * as Leaflet from 'leaflet';
 
-// 使用 Leaflet 全局变量
-declare const L: typeof Leaflet;
-
 // ============================================
 // 类型定义
 // ============================================
@@ -40,15 +37,15 @@ export interface Route {
   _display?: {
     simplified: Point[];
     holes?: Point[][];
-    layer: L.Polyline | L.Polygon | null;
-    markers: L.Marker[];
+    layer: Leaflet.Polyline | Leaflet.Polygon | null;
+    markers: Leaflet.Marker[];
   };
   /** 累计距离缓存: Map<pointIndex, cumulativeDistanceInMeters> */
   _distCache?: number[];
   /** 孔洞累计距离缓存 */
   _holeDistCaches?: number[][];
   /** 热力图层 */
-  heatLayer?: L.Layer | null;
+  heatLayer?: Leaflet.Layer | null;
   /** 是否启用热力图 */
   heatEnabled?: boolean;
   /** 热力图选项 */
@@ -56,7 +53,14 @@ export interface Route {
 }
 
 export interface UIState {
-  activePanel: 'files' | 'edit' | 'measure' | 'heatmap' | 'export' | 'settings' | 'help';
+  activePanel:
+    | 'files'
+    | 'edit'
+    | 'measure'
+    | 'heatmap'
+    | 'export'
+    | 'settings'
+    | 'help';
   propertiesPanelCollapsed: boolean;
   sideBarCollapsed: boolean;
   routeSearchQuery: string;
@@ -66,14 +70,14 @@ export interface EditHandle {
   routeId: string;
   pointIdx: number;
   ringIndex?: number;
-  marker: L.Marker;
+  marker: Leaflet.Marker;
 }
 
 export interface MeasureState {
   active: boolean;
   points: Point[];
   hover: Point | null;
-  layer: L.Polyline | null;
+  layer: Leaflet.Polyline | null;
 }
 
 export interface SegmentExportState {
@@ -81,12 +85,12 @@ export interface SegmentExportState {
   startPoint: Point | null;
   endPoint: Point | null;
   searchRadius: number;
-  layer: L.LayerGroup | null;
+  layer: Leaflet.LayerGroup | null;
 }
 
 export interface HeatmapState {
   enabled: boolean;
-  layer: L.Layer | null;
+  layer: Leaflet.Layer | null;
   /** 开启热力图时隐藏航线 */
   hideRoute: boolean;
   options: {
@@ -115,7 +119,9 @@ export interface SmoothDragContext {
   items: SmoothDragItem[];
 }
 
-export function getRouteGeometryType(route: Pick<Route, 'geometryType'>): GeometryType {
+export function getRouteGeometryType(
+  route: Pick<Route, 'geometryType'>
+): GeometryType {
   return route.geometryType === 'polygon' ? 'polygon' : 'polyline';
 }
 
@@ -123,7 +129,10 @@ export function isPolygonRoute(route: Pick<Route, 'geometryType'>): boolean {
   return getRouteGeometryType(route) === 'polygon';
 }
 
-export function getPointsForRing(route: Pick<Route, 'points' | 'holes'>, ringIndex: number = 0): Point[] {
+export function getPointsForRing(
+  route: Pick<Route, 'points' | 'holes'>,
+  ringIndex: number = 0
+): Point[] {
   if (ringIndex <= 0) {
     return route.points;
   }
@@ -131,7 +140,11 @@ export function getPointsForRing(route: Pick<Route, 'points' | 'holes'>, ringInd
   return route.holes?.[ringIndex - 1] ?? [];
 }
 
-export function setPointsForRing(route: Route, ringIndex: number, points: Point[]): void {
+export function setPointsForRing(
+  route: Route,
+  ringIndex: number,
+  points: Point[]
+): void {
   if (ringIndex <= 0) {
     route.points = points;
     return;
@@ -144,7 +157,9 @@ export function setPointsForRing(route: Route, ringIndex: number, points: Point[
   route.holes[ringIndex - 1] = points;
 }
 
-export function getRouteRings(route: Pick<Route, 'points' | 'holes' | 'geometryType'>): Point[][] {
+export function getRouteRings(
+  route: Pick<Route, 'points' | 'holes' | 'geometryType'>
+): Point[][] {
   if (!isPolygonRoute(route)) {
     return [route.points];
   }
@@ -152,7 +167,9 @@ export function getRouteRings(route: Pick<Route, 'points' | 'holes' | 'geometryT
   return [route.points, ...(route.holes ?? [])];
 }
 
-export function getRouteVertexCount(route: Pick<Route, 'points' | 'holes' | 'geometryType'>): number {
+export function getRouteVertexCount(
+  route: Pick<Route, 'points' | 'holes' | 'geometryType'>
+): number {
   return getRouteRings(route).reduce((total, ring) => total + ring.length, 0);
 }
 
@@ -164,7 +181,11 @@ class StateStore {
   // 核心状态
   routes: Route[] = [];
   selectedRouteId: string | null = null;
-  selectedPoint: { routeId: string; pointIdx: number; ringIndex?: number } | null = null;
+  selectedPoint: {
+    routeId: string;
+    pointIdx: number;
+    ringIndex?: number;
+  } | null = null;
   editHandle: EditHandle | null = null;
   dragContext: { startLat: number; startLon: number } | null = null;
 
@@ -208,7 +229,7 @@ class StateStore {
   smoothRadius = 20;
 
   // 地图实例
-  map: L.Map | null = null;
+  map: Leaflet.Map | null = null;
 
   // 颜色调色板索引
   private colorIndex = 0;
@@ -232,7 +253,9 @@ class StateStore {
   }
 
   getSelectedRoute(): Route | undefined {
-    return this.selectedRouteId ? this.getRouteById(this.selectedRouteId) : undefined;
+    return this.selectedRouteId
+      ? this.getRouteById(this.selectedRouteId)
+      : undefined;
   }
 
   addRoute(
@@ -248,7 +271,8 @@ class StateStore {
       name,
       points,
       geometryType: options.geometryType ?? 'polyline',
-      holes: options.holes?.map((ring) => ring.map((point) => ({ ...point }))) ?? [],
+      holes:
+        options.holes?.map((ring) => ring.map((point) => ({ ...point }))) ?? [],
       color: this.getNextColor(),
       editable: false,
       visible: true,
@@ -280,9 +304,10 @@ class StateStore {
   }
 
   selectPoint(routeId: string, pointIdx: number, ringIndex?: number): void {
-    this.selectedPoint = ringIndex !== undefined
-      ? { routeId, pointIdx, ringIndex }
-      : { routeId, pointIdx };
+    this.selectedPoint =
+      ringIndex !== undefined
+        ? { routeId, pointIdx, ringIndex }
+        : { routeId, pointIdx };
   }
 
   clearSelection(): void {
@@ -294,10 +319,16 @@ class StateStore {
   // 编辑句柄方法
   // ============================================
 
-  setEditHandle(routeId: string, pointIdx: number, marker: L.Marker, ringIndex?: number): void {
-    this.editHandle = ringIndex !== undefined
-      ? { routeId, pointIdx, marker, ringIndex }
-      : { routeId, pointIdx, marker };
+  setEditHandle(
+    routeId: string,
+    pointIdx: number,
+    marker: Leaflet.Marker,
+    ringIndex?: number
+  ): void {
+    this.editHandle =
+      ringIndex !== undefined
+        ? { routeId, pointIdx, marker, ringIndex }
+        : { routeId, pointIdx, marker };
   }
 
   clearEditHandle(): void {
@@ -311,7 +342,10 @@ class StateStore {
   // ============================================
 
   getTotalPoints(): number {
-    return this.routes.reduce((sum, route) => sum + getRouteVertexCount(route), 0);
+    return this.routes.reduce(
+      (sum, route) => sum + getRouteVertexCount(route),
+      0
+    );
   }
 
   getVisibleRouteCount(): number {

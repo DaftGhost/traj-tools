@@ -4,13 +4,20 @@
 
 import * as L from 'leaflet';
 import { store } from '../state/store';
-import { initializeBaseLayers, switchBaseLayer, baseLayers, getLastSelectedBaseLayer, tiandituAvailable } from './layers';
+import {
+  initializeBaseLayers,
+  baseLayers,
+  getLastSelectedBaseLayer,
+  tiandituAvailable,
+} from './layers';
 import { refreshAllRouteDisplayGeometry } from '../routes/geometry';
 
 // 修复 Leaflet 图标问题
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)
+  ._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconRetinaUrl:
+    'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
@@ -106,7 +113,9 @@ export function fitAllRoutes(): void {
   if (!store.map || store.routes.length === 0) return;
 
   const bounds = L.latLngBounds(
-    store.routes.flatMap((r) => r.points.map((p) => [p.lat, p.lon] as L.LatLngExpression))
+    store.routes.flatMap((r) =>
+      r.points.map((p) => [p.lat, p.lon] as L.LatLngExpression)
+    )
   );
   store.map.fitBounds(bounds, { padding: [50, 50] });
 }

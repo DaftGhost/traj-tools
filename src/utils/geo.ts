@@ -123,7 +123,8 @@ export function perpendicularDistance(
     );
   }
 
-  const t = ((point.lon - lineStart.lon) * dx + (point.lat - lineStart.lat) * dy) /
+  const t =
+    ((point.lon - lineStart.lon) * dx + (point.lat - lineStart.lat) * dy) /
     (dx * dx + dy * dy);
 
   if (t < 0) {
@@ -144,23 +145,27 @@ export function perpendicularDistance(
   };
 
   return Math.sqrt(
-    Math.pow(point.lon - nearest.lon, 2) +
-      Math.pow(point.lat - nearest.lat, 2)
+    Math.pow(point.lon - nearest.lon, 2) + Math.pow(point.lat - nearest.lat, 2)
   );
 }
 
 function triangleArea(p1: Point, p2: Point, p3: Point): number {
-  return Math.abs(
-    p1.lon * (p2.lat - p3.lat) +
-      p2.lon * (p3.lat - p1.lat) +
-      p3.lon * (p1.lat - p2.lat)
-  ) / 2;
+  return (
+    Math.abs(
+      p1.lon * (p2.lat - p3.lat) +
+        p2.lon * (p3.lat - p1.lat) +
+        p3.lon * (p1.lat - p2.lat)
+    ) / 2
+  );
 }
 
 /**
  * Visvalingam-Whyatt 简化算法（返回保留点索引）
  */
-export function visvalingamWhyattIndices(points: Point[], targetPoints: number): number[] {
+export function visvalingamWhyattIndices(
+  points: Point[],
+  targetPoints: number
+): number[] {
   const n = points.length;
   if (n < 3) return points.map((_, i) => i);
 
@@ -168,7 +173,9 @@ export function visvalingamWhyattIndices(points: Point[], targetPoints: number):
   if (desiredCount >= n) return points.map((_, i) => i);
 
   const prev: number[] = Array.from({ length: n }, (_, i) => i - 1);
-  const next: number[] = Array.from({ length: n }, (_, i) => (i === n - 1 ? -1 : i + 1));
+  const next: number[] = Array.from({ length: n }, (_, i) =>
+    i === n - 1 ? -1 : i + 1
+  );
   const removed: boolean[] = new Array(n).fill(false);
   const versions: number[] = new Array(n).fill(0);
 
@@ -241,7 +248,12 @@ export function visvalingamWhyattIndices(points: Point[], targetPoints: number):
 
     const { index, version } = entry;
 
-    if (removed[index] || index === 0 || index === n - 1 || version !== versions[index]) {
+    if (
+      removed[index] ||
+      index === 0 ||
+      index === n - 1 ||
+      version !== versions[index]
+    ) {
       continue;
     }
 
@@ -296,7 +308,9 @@ export function calculateBearing(p1: Point, p2: Point): number {
   const lat1 = toRad(p1.lat);
   const lat2 = toRad(p2.lat);
   const y = Math.sin(dLon) * Math.cos(lat2);
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
   const bearing = toDeg(Math.atan2(y, x));
   return (bearing + 360) % 360;
 }
@@ -305,7 +319,7 @@ export function calculateBearing(p1: Point, p2: Point): number {
  * 方位转方向文字（英文缩写）
  */
 export function bearingToDirection(bearing: number): string {
-  const directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   if (!Number.isFinite(bearing)) return directions[0];
   const index = Math.round(bearing / 45) % 8;
   return directions[index];
@@ -349,8 +363,14 @@ export function sphericalPolygonArea(ring: Point[]): number {
   return Math.abs((total * earthRadius * earthRadius) / 2);
 }
 
-export function calculatePolygonArea(outerRing: Point[], holes: Point[][] = []): number {
-  const holeArea = holes.reduce((sum, ring) => sum + sphericalPolygonArea(ring), 0);
+export function calculatePolygonArea(
+  outerRing: Point[],
+  holes: Point[][] = []
+): number {
+  const holeArea = holes.reduce(
+    (sum, ring) => sum + sphericalPolygonArea(ring),
+    0
+  );
   return Math.max(0, sphericalPolygonArea(outerRing) - holeArea);
 }
 
@@ -361,7 +381,10 @@ export function calculatePolygonArea(outerRing: Point[], holes: Point[][] = []):
  * @param intervalMeters 重采样间隔（米），默认 10m
  * @returns 重采样后的点
  */
-export function equidistantResample(points: Point[], intervalMeters: number = 10): Point[] {
+export function equidistantResample(
+  points: Point[],
+  intervalMeters: number = 10
+): Point[] {
   if (points.length < 2) return [...points];
 
   const result: Point[] = [{ ...points[0] }];
@@ -394,18 +417,23 @@ export function equidistantResample(points: Point[], intervalMeters: number = 10
 
   const lastOriginal = points[points.length - 1];
   const lastResult = result[result.length - 1];
-  if (lastResult.lat !== lastOriginal.lat || lastResult.lon !== lastOriginal.lon) {
+  if (
+    lastResult.lat !== lastOriginal.lat ||
+    lastResult.lon !== lastOriginal.lon
+  ) {
     result.push({ ...lastOriginal });
   }
 
   return result;
 }
 
-export function equidistantResampleClosed(points: Point[], intervalMeters: number = 10): Point[] {
+export function equidistantResampleClosed(
+  points: Point[],
+  intervalMeters: number = 10
+): Point[] {
   if (points.length < 3) {
     return closeRing(points);
   }
 
   return equidistantResample(closeRing(points), intervalMeters);
 }
-

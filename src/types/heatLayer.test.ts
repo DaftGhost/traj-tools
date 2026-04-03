@@ -3,7 +3,7 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as L from 'leaflet';
 import type { HeatLayerOptions } from './heatLayer';
 
@@ -14,7 +14,13 @@ describe('types/heatLayer', () => {
         radius: 25,
         blur: 15,
         minOpacity: 0.1,
-        gradient: { 0.4: 'blue', 0.6: 'lime', 0.7: 'yellow', 0.8: 'orange', 1.0: 'red' }
+        gradient: {
+          0.4: 'blue',
+          0.6: 'lime',
+          0.7: 'yellow',
+          0.8: 'orange',
+          1.0: 'red',
+        },
       };
 
       expect(options.radius).toBe(25);
@@ -28,7 +34,7 @@ describe('types/heatLayer', () => {
         radius: 25,
         blur: 15,
         minOpacity: 0.1,
-        gradient: {}
+        gradient: {},
       };
 
       expect(Object.keys(options.gradient).length).toBe(0);
@@ -39,7 +45,7 @@ describe('types/heatLayer', () => {
         radius: 30,
         blur: 10,
         minOpacity: 0.5,
-        gradient: { 0: 'white', 0.5: 'yellow', 1: 'red' }
+        gradient: { 0: 'white', 0.5: 'yellow', 1: 'red' },
       };
 
       expect(options.gradient[0]).toBe('white');
@@ -53,21 +59,28 @@ describe('types/heatLayer', () => {
       const { isHeatLayerWithSetLatLngs } = await import('./heatLayer');
 
       const mockLayer = {
-        setLatLngs: (data: [number, number][]) => mockLayer,
-        setOptions: () => mockLayer
+        setLatLngs: (data: [number, number][]) => {
+          void data;
+          return mockLayer;
+        },
+        setOptions: () => mockLayer,
       };
 
-      expect(isHeatLayerWithSetLatLngs(mockLayer as unknown as L.Layer)).toBe(true);
+      expect(isHeatLayerWithSetLatLngs(mockLayer as unknown as L.Layer)).toBe(
+        true
+      );
     });
 
     it('should return false for object without setLatLngs', async () => {
       const { isHeatLayerWithSetLatLngs } = await import('./heatLayer');
 
       const mockLayer = {
-        setOptions: () => mockLayer
+        setOptions: () => mockLayer,
       };
 
-      expect(isHeatLayerWithSetLatLngs(mockLayer as unknown as L.Layer)).toBe(false);
+      expect(isHeatLayerWithSetLatLngs(mockLayer as unknown as L.Layer)).toBe(
+        false
+      );
     });
 
     it('should return false for null', async () => {
@@ -79,7 +92,9 @@ describe('types/heatLayer', () => {
     it('should return false for undefined', async () => {
       const { isHeatLayerWithSetLatLngs } = await import('./heatLayer');
 
-      expect(isHeatLayerWithSetLatLngs(undefined as unknown as L.Layer)).toBe(false);
+      expect(isHeatLayerWithSetLatLngs(undefined as unknown as L.Layer)).toBe(
+        false
+      );
     });
   });
 
@@ -89,20 +104,27 @@ describe('types/heatLayer', () => {
 
       const mockLayer = {
         setLatLngs: () => mockLayer,
-        setOptions: (opts: unknown) => mockLayer
+        setOptions: (opts: unknown) => {
+          void opts;
+          return mockLayer;
+        },
       };
 
-      expect(isHeatLayerWithSetOptions(mockLayer as unknown as L.Layer)).toBe(true);
+      expect(isHeatLayerWithSetOptions(mockLayer as unknown as L.Layer)).toBe(
+        true
+      );
     });
 
     it('should return false for object without setOptions', async () => {
       const { isHeatLayerWithSetOptions } = await import('./heatLayer');
 
       const mockLayer = {
-        setLatLngs: () => mockLayer
+        setLatLngs: () => mockLayer,
       };
 
-      expect(isHeatLayerWithSetOptions(mockLayer as unknown as L.Layer)).toBe(false);
+      expect(isHeatLayerWithSetOptions(mockLayer as unknown as L.Layer)).toBe(
+        false
+      );
     });
   });
 
@@ -116,10 +138,13 @@ describe('types/heatLayer', () => {
           called = true;
           expect(data.length).toBe(2);
           return mockLayer;
-        }
+        },
       };
 
-      const testData: [number, number][] = [[30, 120], [31, 121]];
+      const testData: [number, number][] = [
+        [30, 120],
+        [31, 121],
+      ];
       safeSetLatLngs(mockLayer as unknown as L.Layer, testData);
 
       expect(called).toBe(true);
@@ -137,12 +162,14 @@ describe('types/heatLayer', () => {
       const { safeSetLatLngs } = await import('./heatLayer');
 
       const mockLayer = {
-        someOtherMethod: () => {}
+        someOtherMethod: () => {},
       };
 
       const testData: [number, number][] = [[30, 120]];
 
-      expect(() => safeSetLatLngs(mockLayer as unknown as L.Layer, testData)).not.toThrow();
+      expect(() =>
+        safeSetLatLngs(mockLayer as unknown as L.Layer, testData)
+      ).not.toThrow();
     });
   });
 
@@ -156,14 +183,14 @@ describe('types/heatLayer', () => {
         setOptions: (opts: HeatLayerOptions) => {
           calledWith = opts;
           return mockLayer;
-        }
+        },
       };
 
       const options: HeatLayerOptions = {
         radius: 25,
         blur: 15,
         minOpacity: 0.1,
-        gradient: { 0.4: 'blue' }
+        gradient: { 0.4: 'blue' },
       };
 
       safeSetOptions(mockLayer as unknown as L.Layer, options);
@@ -180,7 +207,7 @@ describe('types/heatLayer', () => {
         radius: 25,
         blur: 15,
         minOpacity: 0.1,
-        gradient: {}
+        gradient: {},
       };
 
       expect(() => safeSetOptions(null, options)).not.toThrow();
@@ -190,17 +217,19 @@ describe('types/heatLayer', () => {
       const { safeSetOptions } = await import('./heatLayer');
 
       const mockLayer = {
-        setLatLngs: () => mockLayer
+        setLatLngs: () => mockLayer,
       };
 
       const options: HeatLayerOptions = {
         radius: 25,
         blur: 15,
         minOpacity: 0.1,
-        gradient: {}
+        gradient: {},
       };
 
-      expect(() => safeSetOptions(mockLayer as unknown as L.Layer, options)).not.toThrow();
+      expect(() =>
+        safeSetOptions(mockLayer as unknown as L.Layer, options)
+      ).not.toThrow();
     });
   });
 });

@@ -3,7 +3,7 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { store, type Point } from '../state/store';
 import type { SnapRef } from '../types/refs';
 
@@ -219,25 +219,51 @@ describe('utils/snap', () => {
       // Set up store with two routes
       store.routes = [
         {
-          id: 'r1', name: 'R1', color: '#f00', editable: false, visible: true, selected: false,
+          id: 'r1',
+          name: 'R1',
+          color: '#f00',
+          editable: false,
+          visible: true,
+          selected: false,
           points: [
-            { lat: 0, lon: 0 }, { lat: 1, lon: 0 }, { lat: 2, lon: 0 }
+            { lat: 0, lon: 0 },
+            { lat: 1, lon: 0 },
+            { lat: 2, lon: 0 },
           ],
           _display: {
-            simplified: [{ lat: 0, lon: 0 }, { lat: 1, lon: 0 }, { lat: 2, lon: 0 }],
-            layer: null, markers: []
-          }
+            simplified: [
+              { lat: 0, lon: 0 },
+              { lat: 1, lon: 0 },
+              { lat: 2, lon: 0 },
+            ],
+            layer: null,
+            markers: [],
+          },
         },
         {
-          id: 'r2', name: 'R2', color: '#0f0', editable: false, visible: true, selected: false,
+          id: 'r2',
+          name: 'R2',
+          color: '#0f0',
+          editable: false,
+          visible: true,
+          selected: false,
           points: [
-            { lat: 10, lon: 10 }, { lat: 11, lon: 10 }, { lat: 12, lon: 10 }, { lat: 13, lon: 10 }
+            { lat: 10, lon: 10 },
+            { lat: 11, lon: 10 },
+            { lat: 12, lon: 10 },
+            { lat: 13, lon: 10 },
           ],
           _display: {
-            simplified: [{ lat: 10, lon: 10 }, { lat: 11, lon: 10 }, { lat: 12, lon: 10 }, { lat: 13, lon: 10 }],
-            layer: null, markers: []
-          }
-        }
+            simplified: [
+              { lat: 10, lon: 10 },
+              { lat: 11, lon: 10 },
+              { lat: 12, lon: 10 },
+              { lat: 13, lon: 10 },
+            ],
+            layer: null,
+            markers: [],
+          },
+        },
       ] as unknown as typeof store.routes;
 
       const segs = getSnapGeometry();
@@ -278,12 +304,14 @@ describe('utils/snap', () => {
             { lat: 1, lon: 1 },
             { lat: 1, lon: 0 },
           ],
-          holes: [[
-            { lat: 0.2, lon: 0.2 },
-            { lat: 0.2, lon: 0.4 },
-            { lat: 0.4, lon: 0.4 },
-            { lat: 0.4, lon: 0.2 },
-          ]],
+          holes: [
+            [
+              { lat: 0.2, lon: 0.2 },
+              { lat: 0.2, lon: 0.4 },
+              { lat: 0.4, lon: 0.4 },
+              { lat: 0.4, lon: 0.2 },
+            ],
+          ],
           _display: {
             simplified: [
               { lat: 0, lon: 0 },
@@ -291,23 +319,39 @@ describe('utils/snap', () => {
               { lat: 1, lon: 1 },
               { lat: 1, lon: 0 },
             ],
-            holes: [[
-              { lat: 0.2, lon: 0.2 },
-              { lat: 0.2, lon: 0.4 },
-              { lat: 0.4, lon: 0.4 },
-              { lat: 0.4, lon: 0.2 },
-            ]],
+            holes: [
+              [
+                { lat: 0.2, lon: 0.2 },
+                { lat: 0.2, lon: 0.4 },
+                { lat: 0.4, lon: 0.4 },
+                { lat: 0.4, lon: 0.2 },
+              ],
+            ],
             layer: null,
             markers: [],
-          }
-        }
+          },
+        },
       ] as unknown as typeof store.routes;
 
       const segs = getSnapGeometry();
 
       expect(segs).toHaveLength(8);
-      expect(segs.some(seg => seg.routeId === 'poly-1' && seg.pointIdx === 3 && seg.ringIndex === 0)).toBe(true);
-      expect(segs.some(seg => seg.routeId === 'poly-1' && seg.pointIdx === 3 && seg.ringIndex === 1)).toBe(true);
+      expect(
+        segs.some(
+          (seg) =>
+            seg.routeId === 'poly-1' &&
+            seg.pointIdx === 3 &&
+            seg.ringIndex === 0
+        )
+      ).toBe(true);
+      expect(
+        segs.some(
+          (seg) =>
+            seg.routeId === 'poly-1' &&
+            seg.pointIdx === 3 &&
+            seg.ringIndex === 1
+        )
+      ).toBe(true);
     });
   });
 
@@ -317,7 +361,7 @@ describe('utils/snap', () => {
         routeId: 'route-123',
         ringIndex: 1,
         segIdx: 5,
-        segFrac: 0.5
+        segFrac: 0.5,
       };
 
       expect(ref.routeId).toBe('route-123');
@@ -330,13 +374,13 @@ describe('utils/snap', () => {
       const refStart: SnapRef = {
         routeId: 'route-1',
         segIdx: 0,
-        segFrac: 0
+        segFrac: 0,
       };
 
       const refEnd: SnapRef = {
         routeId: 'route-1',
         segIdx: 0,
-        segFrac: 1
+        segFrac: 1,
       };
 
       expect(refStart.segFrac).toBe(0);

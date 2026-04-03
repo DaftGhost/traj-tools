@@ -50,7 +50,10 @@ export function throttle<T extends (...args: unknown[]) => void>(
 /**
  * 从数组中安全移除元素
  */
-export function removeFromArray<T>(arr: T[], predicate: (item: T) => boolean): boolean {
+export function removeFromArray<T>(
+  arr: T[],
+  predicate: (item: T) => boolean
+): boolean {
   const idx = arr.findIndex(predicate);
   if (idx !== -1) {
     arr.splice(idx, 1);
@@ -81,7 +84,7 @@ export function safeJsonParse<T>(json: string, fallback: T): T {
  * 格式化文件名（去除扩展名）
  */
 export function formatFileName(fileName: string): string {
-  return fileName.replace(/\.[^/.]+$/, "");
+  return fileName.replace(/\.[^/.]+$/, '');
 }
 
 /**
@@ -89,16 +92,16 @@ export function formatFileName(fileName: string): string {
  */
 export function getFileExtension(fileName: string): string {
   const match = fileName.match(/\.([^/.]+)$/);
-  return match ? match[1].toLowerCase() : "";
+  return match ? match[1].toLowerCase() : '';
 }
 
 /**
  * 交换字符串中的左右方向词
  * Swaps left/right directional words in a string for reversed routes
- * 
+ *
  * @param str - 输入字符串
  * @returns 交换后的字符串
- * 
+ *
  * @example
  * swapLeftRight("road_left") // returns "road_right"
  * swapLeftRight("右转弯") // returns "左转弯"
@@ -110,31 +113,31 @@ export function swapLeftRight(str: string): string {
   const TEMP_L_UPPER = '\x01\x02\x03__BBBB__\x03\x02\x01';
   const TEMP_L_TITLE = '\x01\x02\x03__CCCC__\x03\x02\x01';
   const TEMP_CN_L = '\x01\x02\x03__DDDD__\x03\x02\x01';
-  
+
   // Step 1: Replace all 'left' variations with unique placeholders
   let result = str
     .replace(/left/g, TEMP_L_LOWER)
     .replace(/LEFT/g, TEMP_L_UPPER)
     .replace(/Left/g, TEMP_L_TITLE);
-  
+
   // Step 2: Replace all 'right' variations with 'left' (preserving case)
   result = result
     .replace(/right/g, 'left')
     .replace(/RIGHT/g, 'LEFT')
     .replace(/Right/g, 'Left');
-  
+
   // Step 3: Replace placeholders with 'right' (preserving case)
   result = result
     .replace(new RegExp(escapeRegExp(TEMP_L_LOWER), 'g'), 'right')
     .replace(new RegExp(escapeRegExp(TEMP_L_UPPER), 'g'), 'RIGHT')
     .replace(new RegExp(escapeRegExp(TEMP_L_TITLE), 'g'), 'Right');
-  
+
   // Step 4: Swap Chinese characters
   result = result
     .replace(/左/g, TEMP_CN_L)
     .replace(/右/g, '左')
     .replace(new RegExp(escapeRegExp(TEMP_CN_L), 'g'), '右');
-  
+
   return result;
 }
 

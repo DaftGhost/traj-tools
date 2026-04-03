@@ -3,7 +3,7 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 describe('ui/commandDefinitions', () => {
   describe('getCommands', () => {
@@ -20,7 +20,7 @@ describe('ui/commandDefinitions', () => {
       const { getCommands } = await import('./commandDefinitions');
 
       const commands = getCommands();
-      const ids = commands.map(c => c.id);
+      const ids = commands.map((c) => c.id);
       const uniqueIds = new Set(ids);
 
       expect(uniqueIds.size).toBe(ids.length);
@@ -31,7 +31,7 @@ describe('ui/commandDefinitions', () => {
 
       const commands = getCommands();
 
-      commands.forEach(cmd => {
+      commands.forEach((cmd) => {
         expect(cmd.id).toBeDefined();
         expect(typeof cmd.id).toBe('string');
         expect(cmd.name).toBeDefined();
@@ -46,7 +46,7 @@ describe('ui/commandDefinitions', () => {
       const { getCommands } = await import('./commandDefinitions');
 
       const commands = getCommands();
-      const categories = new Set(commands.map(c => c.category));
+      const categories = new Set(commands.map((c) => c.category));
 
       expect(categories.has('文件')).toBe(true);
       expect(categories.has('视图')).toBe(true);
@@ -59,7 +59,7 @@ describe('ui/commandDefinitions', () => {
       const { getCommands } = await import('./commandDefinitions');
 
       const commands = getCommands();
-      const importCmd = commands.find(c => c.id === 'file.import');
+      const importCmd = commands.find((c) => c.id === 'file.import');
 
       expect(importCmd).toBeDefined();
       expect(importCmd?.name).toBe('导入文件');
@@ -70,8 +70,10 @@ describe('ui/commandDefinitions', () => {
       const { getCommands } = await import('./commandDefinitions');
 
       const commands = getCommands();
-      const exportCmd = commands.find(c => c.id === 'file.export');
-      const exportSegmentCmd = commands.find(c => c.id === 'file.exportSegment');
+      const exportCmd = commands.find((c) => c.id === 'file.export');
+      const exportSegmentCmd = commands.find(
+        (c) => c.id === 'file.exportSegment'
+      );
 
       expect(exportCmd).toBeDefined();
       expect(exportSegmentCmd).toBeDefined();
@@ -81,9 +83,9 @@ describe('ui/commandDefinitions', () => {
       const { getCommands } = await import('./commandDefinitions');
 
       const commands = getCommands();
-      const fitAllCmd = commands.find(c => c.id === 'view.fitAll');
-      const zoomInCmd = commands.find(c => c.id === 'view.zoomIn');
-      const zoomOutCmd = commands.find(c => c.id === 'view.zoomOut');
+      const fitAllCmd = commands.find((c) => c.id === 'view.fitAll');
+      const zoomInCmd = commands.find((c) => c.id === 'view.zoomIn');
+      const zoomOutCmd = commands.find((c) => c.id === 'view.zoomOut');
 
       expect(fitAllCmd).toBeDefined();
       expect(fitAllCmd?.name).toBe('显示全部航线');
@@ -97,22 +99,24 @@ describe('ui/commandDefinitions', () => {
       const { getCommands } = await import('./commandDefinitions');
 
       const commands = getCommands();
-      const baseLayerCmds = commands.filter(c => c.id.startsWith('map.'));
+      const baseLayerCmds = commands.filter((c) => c.id.startsWith('map.'));
 
       expect(baseLayerCmds.length).toBe(4);
-      expect(baseLayerCmds.some(c => c.name.includes('OpenStreetMap'))).toBe(true);
-      expect(baseLayerCmds.some(c => c.name.includes('卫星图'))).toBe(true);
-      expect(baseLayerCmds.some(c => c.name.includes('暗色地图'))).toBe(true);
-      expect(baseLayerCmds.some(c => c.name.includes('浅色地图'))).toBe(true);
+      expect(baseLayerCmds.some((c) => c.name.includes('OpenStreetMap'))).toBe(
+        true
+      );
+      expect(baseLayerCmds.some((c) => c.name.includes('卫星图'))).toBe(true);
+      expect(baseLayerCmds.some((c) => c.name.includes('暗色地图'))).toBe(true);
+      expect(baseLayerCmds.some((c) => c.name.includes('浅色地图'))).toBe(true);
     });
 
     it('should have edit commands', async () => {
       const { getCommands } = await import('./commandDefinitions');
 
       const commands = getCommands();
-      const toggleModeCmd = commands.find(c => c.id === 'edit.toggleMode');
-      const deleteCmd = commands.find(c => c.id === 'edit.deleteSelected');
-      const mergeCmd = commands.find(c => c.id === 'edit.mergeRoutes');
+      const toggleModeCmd = commands.find((c) => c.id === 'edit.toggleMode');
+      const deleteCmd = commands.find((c) => c.id === 'edit.deleteSelected');
+      const mergeCmd = commands.find((c) => c.id === 'edit.mergeRoutes');
 
       expect(toggleModeCmd).toBeDefined();
       expect(toggleModeCmd?.name).toBe('切换编辑模式');
@@ -126,9 +130,9 @@ describe('ui/commandDefinitions', () => {
       const { getCommands } = await import('./commandDefinitions');
 
       const commands = getCommands();
-      const measureCmd = commands.find(c => c.id === 'tools.toggleMeasure');
-      const segmentCmd = commands.find(c => c.id === 'tools.toggleSegment');
-      const heatmapCmd = commands.find(c => c.id === 'tools.toggleHeatmap');
+      const measureCmd = commands.find((c) => c.id === 'tools.toggleMeasure');
+      const segmentCmd = commands.find((c) => c.id === 'tools.toggleSegment');
+      const heatmapCmd = commands.find((c) => c.id === 'tools.toggleHeatmap');
 
       expect(measureCmd).toBeDefined();
       expect(measureCmd?.name).toBe('切换测距工具');
@@ -144,7 +148,7 @@ describe('ui/commandDefinitions', () => {
       const { getCommands } = await import('./commandDefinitions');
 
       const commands = getCommands();
-      const fullCmd = commands.find(c => c.description !== undefined);
+      const fullCmd = commands.find((c) => c.description !== undefined);
 
       expect(fullCmd).toBeDefined();
       expect(fullCmd!.id).toBeDefined();
@@ -158,7 +162,7 @@ describe('ui/commandDefinitions', () => {
       const { getCommands } = await import('./commandDefinitions');
 
       const commands = getCommands();
-      const noDescCmd = commands.find(c => c.description === undefined);
+      const noDescCmd = commands.find((c) => c.description === undefined);
 
       expect(noDescCmd).toBeDefined();
       expect(noDescCmd!.id).toBeDefined();
