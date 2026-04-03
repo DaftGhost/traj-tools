@@ -46,6 +46,22 @@ function createPolygonRoute(name: string): Route {
   };
 }
 
+function createPointRoute(
+  name: string,
+  points = [{ lat: 30.0, lon: 120.0 }]
+): Route {
+  return {
+    id: name,
+    name,
+    points,
+    geometryType: 'point',
+    color: '#1E88E5',
+    editable: false,
+    visible: true,
+    selected: false,
+  };
+}
+
 function mountExportDom({
   format = 'csv',
   bidirectional = true,
@@ -64,9 +80,19 @@ function mountExportDom({
     <input id="segment-as-linestring" type="checkbox" />
   `;
 
-  (document.getElementById('export-format') as unknown as HTMLSelectElement).value = format;
-  (document.getElementById('export-bidirectional') as unknown as HTMLInputElement).checked = bidirectional;
-  (document.getElementById('segment-as-linestring') as unknown as HTMLInputElement).checked = segmentAsLinestring;
+  (
+    document.getElementById('export-format') as unknown as HTMLSelectElement
+  ).value = format;
+  (
+    document.getElementById(
+      'export-bidirectional'
+    ) as unknown as HTMLInputElement
+  ).checked = bidirectional;
+  (
+    document.getElementById(
+      'segment-as-linestring'
+    ) as unknown as HTMLInputElement
+  ).checked = segmentAsLinestring;
 }
 
 function readBlobAsText(blob: Blob): Promise<string> {
@@ -99,7 +125,9 @@ describe('exportData bidirectional option', () => {
     store.routes = [createPolylineRoute('route')];
 
     const downloads: string[] = [];
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function(this: HTMLAnchorElement) {
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
       downloads.push(this.download);
     });
 
@@ -113,7 +141,9 @@ describe('exportData bidirectional option', () => {
     store.routes = [createPolylineRoute('route')];
 
     const downloads: string[] = [];
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function(this: HTMLAnchorElement) {
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
       downloads.push(this.download);
     });
 
@@ -127,7 +157,9 @@ describe('exportData bidirectional option', () => {
     store.routes = [createPolygonRoute('area')];
 
     const downloads: string[] = [];
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function(this: HTMLAnchorElement) {
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
       downloads.push(this.download);
     });
 
@@ -141,13 +173,103 @@ describe('exportData bidirectional option', () => {
     store.routes = [createPolygonRoute('area')];
 
     const downloads: string[] = [];
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function(this: HTMLAnchorElement) {
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
       downloads.push(this.download);
     });
 
     exportData();
 
     expect(downloads).toEqual(['area.geojson']);
+  });
+
+  it('exports point routes as a single CSV even when bidirectional export is enabled', () => {
+    mountExportDom({ format: 'csv', bidirectional: true });
+    store.routes = [createPointRoute('poi', [{ lat: 30.0, lon: 120.0 }])];
+
+    const downloads: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
+      downloads.push(this.download);
+    });
+
+    exportData();
+
+    expect(downloads).toEqual(['poi.csv']);
+  });
+
+  it('exports point routes as valid Point GeoJSON', async () => {
+    mountExportDom({ format: 'geojson', bidirectional: true });
+    store.routes = [createPointRoute('poi', [{ lat: 30.0, lon: 120.0 }])];
+
+    let downloadedBlob: Blob | null = null;
+    Object.assign(URL, {
+      createObjectURL: vi.fn((blob: Blob) => {
+        downloadedBlob = blob;
+        return 'blob:test';
+      }),
+    });
+
+    const downloads: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
+      downloads.push(this.download);
+    });
+
+    exportData();
+
+    expect(downloads).toEqual(['poi.geojson']);
+    const json = JSON.parse(await readBlobAsText(downloadedBlob!)) as {
+      features: Array<{
+        geometry: {
+          type: string;
+          coordinates: [number, number] | [number, number][];
+        };
+      }>;
+    };
+
+    expect(json.features[0]?.geometry.type).toBe('Point');
+    expect(json.features[0]?.geometry.coordinates).toEqual([120.0, 30.0]);
+  });
+
+  it('exports multi-point routes as valid MultiPoint GeoJSON', async () => {
+    mountExportDom({ format: 'geojson', bidirectional: false });
+    store.routes = [
+      createPointRoute('pois', [
+        { lat: 30.0, lon: 120.0 },
+        { lat: 30.1, lon: 120.1 },
+      ]),
+    ];
+
+    let downloadedBlob: Blob | null = null;
+    Object.assign(URL, {
+      createObjectURL: vi.fn((blob: Blob) => {
+        downloadedBlob = blob;
+        return 'blob:test';
+      }),
+    });
+
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    exportData();
+
+    const json = JSON.parse(await readBlobAsText(downloadedBlob!)) as {
+      features: Array<{
+        geometry: {
+          type: string;
+          coordinates: [number, number][];
+        };
+      }>;
+    };
+
+    expect(json.features[0]?.geometry.type).toBe('MultiPoint');
+    expect(json.features[0]?.geometry.coordinates).toEqual([
+      [120.0, 30.0],
+      [120.1, 30.1],
+    ]);
   });
 });
 
@@ -169,7 +291,9 @@ describe('Export with left/right swapping', () => {
 
   it('should handle complex route names', () => {
     // Test realistic route names
-    expect(swapLeftRight('N_S_highway_left_lane')).toBe('N_S_highway_right_lane');
+    expect(swapLeftRight('N_S_highway_left_lane')).toBe(
+      'N_S_highway_right_lane'
+    );
     expect(swapLeftRight('东西向_左侧_车道')).toBe('东西向_右侧_车道');
     expect(swapLeftRight('Left_Turn_Route')).toBe('Right_Turn_Route');
   });
@@ -279,7 +403,9 @@ describe('polygon segment extraction (cut-down export)', () => {
     });
 
     const downloads: string[] = [];
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function(this: HTMLAnchorElement) {
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
       downloads.push(this.download);
     });
 
@@ -307,7 +433,11 @@ describe('polygon segment extraction (cut-down export)', () => {
   });
 
   it('exports polygon segments as LineString GeoJSON when requested', async () => {
-    mountExportDom({ format: 'csv', bidirectional: true, segmentAsLinestring: true });
+    mountExportDom({
+      format: 'csv',
+      bidirectional: true,
+      segmentAsLinestring: true,
+    });
     store.routes = [polygonRoute];
     store.selectedRouteId = polygonRoute.id;
     store.segmentExport.startPoint = { lat: 30.0, lon: 120.0 };
@@ -326,7 +456,9 @@ describe('polygon segment extraction (cut-down export)', () => {
     });
 
     const downloads: string[] = [];
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function(this: HTMLAnchorElement) {
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
       downloads.push(this.download);
     });
 
@@ -398,13 +530,17 @@ describe('Export filename generation', () => {
     const reverseDirection = 'S';
 
     // Forward file
-    const forwardName = prefix ? `${reverseDirection}_${direction}_${baseName}_${prefix}` : `${reverseDirection}_${direction}_${baseName}`;
+    const forwardName = prefix
+      ? `${reverseDirection}_${direction}_${baseName}_${prefix}`
+      : `${reverseDirection}_${direction}_${baseName}`;
     expect(forwardName).toBe('S_N_highway_right');
 
     // Reverse file (with swapping)
     const reverseBaseName = swapLeftRight(baseName);
     const reversePrefix = swapLeftRight(prefix);
-    const reverseName = reversePrefix ? `${direction}_${reverseDirection}_${reverseBaseName}_${reversePrefix}` : `${direction}_${reverseDirection}_${reverseBaseName}`;
+    const reverseName = reversePrefix
+      ? `${direction}_${reverseDirection}_${reverseBaseName}_${reversePrefix}`
+      : `${direction}_${reverseDirection}_${reverseBaseName}`;
     expect(reverseName).toBe('N_S_highway_left');
   });
 });

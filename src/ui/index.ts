@@ -2,7 +2,15 @@
  * UI 初始化模块
  */
 
-import { store, getPointsForRing, isPolygonRoute } from '../state/store';
+import {
+  getPointsForRing,
+  isPointRoute,
+  isPolygonRoute,
+  isPolylineRoute,
+  store,
+  supportsBidirectionalExport,
+  supportsEndpointSelection,
+} from '../state/store';
 import { initializePanelSwitching } from './panels';
 import { initializeKeyboardShortcuts } from './keyboard';
 import { initializeCommandPalette } from './commands';
@@ -154,6 +162,7 @@ function initializeFileInput(): void {
 async function handleFiles(e: Event): Promise<void> {
   const target = e.target as HTMLInputElement;
   const files = target.files;
+  let successCount = 0;
 
   if (!files || files.length === 0) return;
 
@@ -162,6 +171,7 @@ async function handleFiles(e: Event): Promise<void> {
     try {
       const { importRoute } = await import('../import/index');
       await importRoute(file);
+      successCount += 1;
     } catch (error) {
       console.error('导入文件失败:', file.name, error);
     }
@@ -170,6 +180,10 @@ async function handleFiles(e: Event): Promise<void> {
   target.value = '';
   updateRouteList();
   updateStatusBar();
+
+  if (successCount > 0) {
+    setStatus(`已导入 ${successCount} 个文件`);
+  }
 }
 
 /**
@@ -341,7 +355,9 @@ function handleAddNodeClick(e: L.LeafletMouseEvent): void {
 
     if (isCurrentRouteSelection) {
       const ringIndex = selectedPoint.ringIndex ?? 0;
-      if (!isPolygonRoute(route) && selectedPoint.pointIdx === 0) {
+      if (isPointRoute(route)) {
+        m.addNodeToRoute(route.id, e.latlng.lat, e.latlng.lng, ringIndex);
+      } else if (!isPolygonRoute(route) && selectedPoint.pointIdx === 0) {
         m.prependNodeToRoute(route.id, e.latlng.lat, e.latlng.lng, ringIndex);
       } else {
         m.insertNodeAt(
@@ -494,7 +510,7 @@ function canMergeRoutes(
   routeA: NonNullable<ReturnType<typeof store.getSelectedRoute>>,
   routeB: (typeof store.routes)[number]
 ): boolean {
-  return !isPolygonRoute(routeA) && !isPolygonRoute(routeB);
+  return isPolylineRoute(routeA) && isPolylineRoute(routeB);
 }
 
 /**
@@ -671,10 +687,10 @@ function updateExportBidirectionalControlState(): void {
 
   const selectedRoute = store.getSelectedRoute();
   const hasVisiblePolyline = store.routes.some(
-    (route) => route.visible && !isPolygonRoute(route)
+    (route) => route.visible && supportsBidirectionalExport(route)
   );
   const hasSelectedPolyline = Boolean(
-    selectedRoute && !isPolygonRoute(selectedRoute)
+    selectedRoute && supportsBidirectionalExport(selectedRoute)
   );
   const enabled = hasVisiblePolyline || hasSelectedPolyline;
   const title = enabled ? '仅对折线导出生效' : '当前没有可应用双向导出的折线';
@@ -816,6 +832,10 @@ function getRouteSummary(route: (typeof store.routes)[number]): string {
         (route.holes?.reduce((sum, ring) => sum + ring.length, 0) ?? 0)
       : route.points.length;
 
+  if (isPointRoute(route)) {
+    return vertexCount === 1 ? '1 点' : `${vertexCount} 点集`;
+  }
+
   if (!isPolygonRoute(route)) {
     return `${vertexCount} 点`;
   }
@@ -852,7 +872,8 @@ function syncEndpointQuickControls(): void {
   const polygonEditable = Boolean(
     route && route.editable && isPolygonRoute(route)
   );
-  controls.hidden = !isEditable || Boolean(route && isPolygonRoute(route));
+  controls.hidden =
+    !isEditable || Boolean(route && !supportsEndpointSelection(route));
   if (addHoleBtn) {
     addHoleBtn.hidden = !route || !isPolygonRoute(route);
     addHoleBtn.disabled = !polygonEditable;
@@ -866,7 +887,7 @@ function syncEndpointQuickControls(): void {
     return;
   }
 
-  if (isPolygonRoute(route)) {
+  if (!supportsEndpointSelection(route)) {
     startBtn.classList.remove('btn-active');
     endBtn.classList.remove('btn-active');
     startBtn.disabled = true;

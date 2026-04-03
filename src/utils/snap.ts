@@ -2,7 +2,12 @@
  * Unified snap utilities for snapping to routes
  */
 
-import { store, type Point, isPolygonRoute } from '../state/store';
+import {
+  isPolygonRoute,
+  store,
+  supportsLinearSegments,
+  type Point,
+} from '../state/store';
 import type { SnapResult } from '../types/refs';
 import { haversineDistance } from './geo';
 import { MEASURE_CONFIG } from '../config/constants';
@@ -110,6 +115,10 @@ export function getSnapGeometry(
   }> = [];
 
   for (const route of routes) {
+    if (!supportsLinearSegments(route)) {
+      continue;
+    }
+
     const rings =
       useOriginal || route.editable
         ? [route.points, ...(route.holes ?? [])]
@@ -200,12 +209,11 @@ export function snapToRoutes(
   const selectedRouteId = snapSelectedOnly
     ? store.selectedRouteId || undefined
     : undefined;
-  const snapGeometry = getSnapGeometry(selectedRouteId, useOriginal);
-
-  if (snapGeometry.length === 0) return null;
 
   // 1. Find nearest vertex first
   const nearestVertex = findNearestVertex(latlng, selectedRouteId);
+
+  const snapGeometry = getSnapGeometry(selectedRouteId, useOriginal);
 
   // 2. Find nearest segment
   let minSegDist = Infinity;
@@ -262,6 +270,10 @@ export function snapToRoutes(
         },
       };
     }
+  }
+
+  if (snapGeometry.length === 0) {
+    return null;
   }
 
   // Check segment

@@ -21,6 +21,8 @@ vi.mock('leaflet', () => {
     default: {
       polyline: vi.fn(() => createLayer()),
       polygon: vi.fn(() => createLayer()),
+      circleMarker: vi.fn(() => createLayer()),
+      featureGroup: vi.fn(() => createLayer()),
       latLng: vi.fn((lat: number, lon: number) => ({ lat, lng: lon })),
       marker: vi.fn(() => ({
         addTo: vi.fn().mockReturnThis(),
@@ -31,6 +33,8 @@ vi.mock('leaflet', () => {
     },
     polyline: vi.fn(() => createLayer()),
     polygon: vi.fn(() => createLayer()),
+    circleMarker: vi.fn(() => createLayer()),
+    featureGroup: vi.fn(() => createLayer()),
     latLng: vi.fn((lat: number, lon: number) => ({ lat, lng: lon })),
     marker: vi.fn(() => ({
       addTo: vi.fn().mockReturnThis(),
@@ -130,5 +134,27 @@ describe('routes/geometry display simplification', () => {
     expect(route._display?.simplified).not.toBe(outer);
     expect(route._display?.holes).toEqual([hole]);
     expect(route._display?.holes?.[0]).not.toBe(hole);
+  });
+
+  it('renders point geometry without attempting simplification', async () => {
+    const { updateRouteDisplayGeometry } = await import('./geometry');
+    const { store } = await import('../state/store');
+    const points: Point[] = [
+      { lat: 30.0, lon: 120.0 },
+      { lat: 30.1, lon: 120.1 },
+    ];
+    const route = createRoute(points);
+    route.geometryType = 'point';
+    store.routes = [];
+    store.selectedRouteId = null;
+    store.selectedPoint = null;
+    store.clearEditHandle();
+    store.map = {} as never;
+
+    updateRouteDisplayGeometry(route);
+
+    expect(route._display?.simplified).toEqual(points);
+    expect(route._display?.simplified).not.toBe(points);
+    expect(route._display?.holes).toEqual([]);
   });
 });

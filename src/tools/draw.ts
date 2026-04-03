@@ -7,9 +7,11 @@ import { store, Point, GeometryType, getPointsForRing } from '../state/store';
 import { updateRouteDisplayGeometry } from '../routes/geometry';
 import { setStatus, updateStatusCoords } from '../utils/uiStatus';
 
+type DrawableGeometryType = Exclude<GeometryType, 'point'>;
+
 let drawingMode = false;
 let drawingRouteId: string | null = null;
-let drawingGeometryType: GeometryType = 'polyline';
+let drawingGeometryType: DrawableGeometryType = 'polyline';
 let drawingRingIndex = 0;
 let previewCloseLine: L.Polyline | null = null;
 
@@ -19,7 +21,7 @@ function prepareDrawingSession(): void {
   }
 
   // 使用动态导入代替 require，确保兼容浏览器 ES Modules
-  import('./measure').then(m => {
+  import('./measure').then((m) => {
     if (m.isMeasureActive()) {
       m.clearMeasure();
       m.toggleMeasureMode();
@@ -41,7 +43,10 @@ function clearPreviewCloseLine(): void {
   }
 }
 
-function updatePreviewCloseLine(route: { color: string; points: Point[] }): void {
+function updatePreviewCloseLine(route: {
+  color: string;
+  points: Point[];
+}): void {
   clearPreviewCloseLine();
 
   if (!store.map) return;
@@ -51,7 +56,10 @@ function updatePreviewCloseLine(route: { color: string; points: Point[] }): void
   const first = ring[0];
   const last = ring[ring.length - 1];
   previewCloseLine = L.polyline(
-    [[last.lat, last.lon], [first.lat, first.lon]],
+    [
+      [last.lat, last.lon],
+      [first.lat, first.lon],
+    ],
     {
       color: route.color,
       weight: 2,
@@ -66,10 +74,12 @@ function createRouteName(prefix: string): string {
   return `${prefix}_${now.getFullYear()}${now.getMonth() + 1}${now.getDate()}${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
 }
 
-function beginDrawingRoute(geometryType: GeometryType): void {
+function beginDrawingRoute(geometryType: DrawableGeometryType): void {
   prepareDrawingSession();
 
-  const routeName = createRouteName(geometryType === 'polygon' ? '多边形' : '航线');
+  const routeName = createRouteName(
+    geometryType === 'polygon' ? '多边形' : '航线'
+  );
   const route = store.addRoute(routeName, [], { geometryType });
 
   route.editable = true;
@@ -82,7 +92,7 @@ function beginDrawingRoute(geometryType: GeometryType): void {
   updateDrawingButton();
   bindDrawingEvents();
 
-  import('../ui/index').then(m => {
+  import('../ui/index').then((m) => {
     m.updateRouteList();
     m.updatePropertiesPanel();
   });
@@ -105,7 +115,9 @@ export function startDrawingPolygon(): void {
 export function startDrawingHole(routeId?: string): void {
   prepareDrawingSession();
 
-  const route = routeId ? store.getRouteById(routeId) : store.getSelectedRoute();
+  const route = routeId
+    ? store.getRouteById(routeId)
+    : store.getSelectedRoute();
   if (!route || route.geometryType !== 'polygon') {
     setStatus('请先选择一条多边形');
     return;
@@ -130,12 +142,14 @@ export function startDrawingHole(routeId?: string): void {
   bindDrawingEvents();
   updateRouteDisplayGeometry(route);
 
-  import('../ui/index').then(m => {
+  import('../ui/index').then((m) => {
     m.updateRouteList();
     m.updatePropertiesPanel();
   });
 
-  setStatus(`开始为多边形 ${route.name} 绘制孔洞，点击地图添加点，双击/回车结束`);
+  setStatus(
+    `开始为多边形 ${route.name} 绘制孔洞，点击地图添加点，双击/回车结束`
+  );
 }
 
 export function finishDrawingRoute(): void {
@@ -159,7 +173,11 @@ export function finishDrawingRoute(): void {
       setStatus('已取消新建孔洞（未添加任何点）');
     } else {
       store.removeRoute(drawingRouteId);
-      setStatus(drawingGeometryType === 'polygon' ? '已取消新建多边形（未添加任何点）' : '已取消新建航线（未添加任何点）');
+      setStatus(
+        drawingGeometryType === 'polygon'
+          ? '已取消新建多边形（未添加任何点）'
+          : '已取消新建航线（未添加任何点）'
+      );
     }
   } else if (pointCount < minimumPoints) {
     if (isHole) {
@@ -167,7 +185,11 @@ export function finishDrawingRoute(): void {
       setStatus('孔洞至少需要 3 个点，已取消当前孔洞');
     } else {
       store.removeRoute(drawingRouteId);
-      setStatus(drawingGeometryType === 'polygon' ? '多边形至少需要 3 个点，已取消当前绘制' : '已取消新建航线');
+      setStatus(
+        drawingGeometryType === 'polygon'
+          ? '多边形至少需要 3 个点，已取消当前绘制'
+          : '已取消新建航线'
+      );
     }
   } else {
     if (!isHole) {
@@ -193,7 +215,7 @@ export function finishDrawingRoute(): void {
   clearPreviewCloseLine();
   updateDrawingButton();
 
-  import('../ui/index').then(m => {
+  import('../ui/index').then((m) => {
     m.updateRouteList();
     m.updatePropertiesPanel();
   });
@@ -211,7 +233,11 @@ export function cancelDrawingRoute(): void {
       setStatus(`已取消孔洞绘制: ${route.name}`);
     } else if (ring.length === 0) {
       store.removeRoute(drawingRouteId);
-      setStatus(drawingGeometryType === 'polygon' ? '已取消新建多边形' : '已取消新建航线');
+      setStatus(
+        drawingGeometryType === 'polygon'
+          ? '已取消新建多边形'
+          : '已取消新建航线'
+      );
     } else {
       route.editable = false;
       store.clearEditHandle();
@@ -233,7 +259,7 @@ export function cancelDrawingRoute(): void {
   clearPreviewCloseLine();
   updateDrawingButton();
 
-  import('../ui/index').then(m => {
+  import('../ui/index').then((m) => {
     m.updateRouteList();
     m.updatePropertiesPanel();
   });
@@ -254,9 +280,15 @@ export function getDrawingRouteId(): string | null {
 }
 
 function updateDrawingButton(): void {
-  const routeBtn = document.getElementById('new-route') as HTMLButtonElement | null;
-  const polygonBtn = document.getElementById('new-polygon') as HTMLButtonElement | null;
-  const holeBtn = document.getElementById('add-hole') as HTMLButtonElement | null;
+  const routeBtn = document.getElementById(
+    'new-route'
+  ) as HTMLButtonElement | null;
+  const polygonBtn = document.getElementById(
+    'new-polygon'
+  ) as HTMLButtonElement | null;
+  const holeBtn = document.getElementById(
+    'add-hole'
+  ) as HTMLButtonElement | null;
   const kind = getDrawingModeKind();
 
   if (routeBtn) {
@@ -313,9 +345,13 @@ function handleDrawingClick(e: L.LeafletMouseEvent): void {
     updatePreviewCloseLine({ color: route.color, points: ring });
   }
 
-  store.selectPoint(route.id, ring.length - 1, route.geometryType === 'polygon' ? drawingRingIndex : undefined);
+  store.selectPoint(
+    route.id,
+    ring.length - 1,
+    route.geometryType === 'polygon' ? drawingRingIndex : undefined
+  );
 
-  import('../ui/index').then(m => {
+  import('../ui/index').then((m) => {
     m.updateRouteList();
     m.updatePropertiesPanel();
   });

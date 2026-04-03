@@ -3,6 +3,8 @@ import { computed } from 'vue';
 import { deleteRoute, toggleRouteVisibility } from '../../routes';
 import {
   getRouteVertexCount,
+  getRouteGeometryLabel,
+  isPointRoute,
   isPolygonRoute,
   store,
   type Route,
@@ -35,6 +37,10 @@ const routeCount = computed(() => {
 
 function getRouteSummary(route: Route): string {
   const vertexCount = getRouteVertexCount(route);
+  if (isPointRoute(route)) {
+    return vertexCount === 1 ? '1 点' : `${vertexCount} 点集`;
+  }
+
   if (!isPolygonRoute(route)) {
     return `${vertexCount} 点`;
   }
@@ -133,7 +139,7 @@ function handleDeleteRoute(route: Route): void {
           ></span>
           <span class="route-name">{{ route.name }}</span>
           <span class="route-geometry-tag">{{
-            isPolygonRoute(route) ? 'Polygon' : 'Line'
+            getRouteGeometryLabel(route)
           }}</span>
           <span class="route-points">{{ getRouteSummary(route) }}</span>
           <button

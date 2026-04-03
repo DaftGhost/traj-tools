@@ -52,6 +52,12 @@ describe('PropertiesPanel', () => {
 
     expect(wrapper.get('#prop-route-name').text()).toBe('Polygon Alpha');
     expect(wrapper.get('#prop-route-type').text()).toBe('多边形');
+    expect(
+      (
+        wrapper.get('#prop-route-geometry-type')
+          .element as unknown as HTMLSelectElement
+      ).value
+    ).toBe('polygon');
     expect(wrapper.get('#prop-route-holes').text()).toBe('1');
     expect(wrapper.get('#prop-route-status').text()).toBe('可编辑');
     expect(wrapper.get('#prop-point-index').text()).toBe('环 2 / 点 2');
@@ -63,8 +69,23 @@ describe('PropertiesPanel', () => {
     const wrapper = mount(PropertiesPanel);
 
     expect(wrapper.get('#prop-route-name').text()).toBe('-');
+    expect(wrapper.get('#prop-route-geometry-type').text()).toBe('-');
     expect(wrapper.get('#prop-selection-info').text()).toContain(
       '请在地图上选择航线或点以查看属性'
     );
+  });
+
+  it('changes route geometry type and clears incompatible polygon state', async () => {
+    const route = createPolygonRoute();
+    store.routes = [route];
+    store.selectedRouteId = route.id;
+    store.selectedPoint = { routeId: route.id, pointIdx: 1, ringIndex: 1 };
+
+    const wrapper = mount(PropertiesPanel);
+    await wrapper.get('#prop-route-geometry-type').setValue('polyline');
+
+    expect(route.geometryType).toBe('polyline');
+    expect(route.holes).toEqual([]);
+    expect(store.selectedPoint).toBeNull();
   });
 });

@@ -3,7 +3,12 @@
  */
 
 import Papa from 'papaparse';
-import { store, Point, GeometryType } from '../state/store';
+import {
+  GeometryType,
+  getMinimumRoutePoints,
+  Point,
+  store,
+} from '../state/store';
 import { addRoute } from '../routes/index';
 import { fitAllRoutes, fitRoute } from '../map';
 import { stripClosingPoint } from '../utils/geo';
@@ -19,6 +24,10 @@ interface ParsedRouteGeometry {
   geometryType: GeometryType;
   holes?: Point[][];
   name?: string;
+}
+
+export interface ImportRouteOptions {
+  csvGeometryType?: GeometryType;
 }
 
 // GeoJSON 类型定义
@@ -88,36 +97,21 @@ interface GeoJSONFeatureCollection {
  * 解析 CSV 文件
  */
 export async function parseCsvFile(file: File): Promise<ParsedPoint[]> {
-  console.log('[parseCsvFile] Starting parse of:', file.name);
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
-        console.log('[parseCsvFile] Results data length:', results.data.length);
-        console.log(
-          '[parseCsvFile] First row keys:',
-          results.data.length > 0
-            ? Object.keys(results.data[0] as object)
-            : 'none'
-        );
         const points: ParsedPoint[] = [];
 
         for (const row of results.data as Record<string, unknown>[]) {
           // 检测所有可能的经纬度列名
           const latKey = detectLatKey(row);
           const lonKey = detectLonKey(row);
-          console.log(
-            '[parseCsvFile] Detected latKey:',
-            latKey,
-            'lonKey:',
-            lonKey
-          );
 
           if (latKey && lonKey) {
             const lat = parseCoordinate(row[latKey]);
             const lon = parseCoordinate(row[lonKey]);
-            console.log('[parseCsvFile] Row values:', lat, lon);
 
             if (!isNaN(lat) && !isNaN(lon)) {
               // Spread row first, then override with parsed numeric lat/lon to ensure they're numbers
@@ -126,7 +120,6 @@ export async function parseCsvFile(file: File): Promise<ParsedPoint[]> {
           }
         }
 
-        console.log('[parseCsvFile] Total points parsed:', points.length);
         resolve(points);
       },
       error: (error) => reject(error),
@@ -136,6 +129,16 @@ export async function parseCsvFile(file: File): Promise<ParsedPoint[]> {
 
 function normalizeRing(ring: [number, number][]): Point[] {
   return stripClosingPoint(ring.map(([lon, lat]) => ({ lat, lon })));
+}
+
+function buildCsvRouteGeometry(
+  points: Point[],
+  geometryType: GeometryType
+): ParsedRouteGeometry {
+  return {
+    points: geometryType === 'polygon' ? stripClosingPoint(points) : points,
+    geometryType,
+  };
 }
 
 function getGeometryName(
@@ -217,7 +220,6 @@ function parseCoordinate(value: unknown): number {
   if (typeof value === 'number') return value;
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    console.log('[parseCoordinate] Parsing:', trimmed);
 
     // 尝试解析 "度-分" 格式（如 120-6.588E 或 31-38.183N）
     const dmsMatch = trimmed.match(/^(\d+)-(\d+(?:\.\d+)?)[EWNS]?$/i);
@@ -225,7 +227,6 @@ function parseCoordinate(value: unknown): number {
       const degrees = parseFloat(dmsMatch[1]);
       const minutes = parseFloat(dmsMatch[2]);
       const result = degrees + minutes / 60;
-      console.log('[parseCoordinate] DMS parse result:', result);
       return result;
     }
 
@@ -241,13 +242,10 @@ function parseCoordinate(value: unknown): number {
       const dir = tradMatch[4];
       if (dir && (dir.toUpperCase() === 'S' || dir.toUpperCase() === 'W'))
         d = -d;
-      console.log('[parseCoordinate] DMS traditional result:', d);
       return d;
     }
 
-    const result = parseFloat(trimmed);
-    console.log('[parseCoordinate] Float parse result:', result);
-    return result;
+    return parseFloat(trimmed);
   }
   return NaN;
 }
@@ -299,14 +297,14 @@ function extractRoutesFromGeometry(
   switch (geometry.type) {
     case 'Point': {
       const [lon, lat] = geometry.coordinates;
-      return [{ points: [{ lat, lon }], geometryType: 'polyline', name }];
+      return [{ points: [{ lat, lon }], geometryType: 'point', name }];
     }
 
     case 'MultiPoint': {
       return [
         {
           points: geometry.coordinates.map(([lon, lat]) => ({ lat, lon })),
-          geometryType: 'polyline',
+          geometryType: 'point',
           name,
         },
       ];
@@ -415,9 +413,7 @@ async function detectFileType(
   const name = file.name.toLowerCase();
   const ext = name.split('.').pop();
 
-  console.log('[detectFileType] File:', file.name, 'ext:', ext);
   if (ext === 'csv') {
-    console.log('detectFileType: csv detected');
     return 'csv';
   }
   if (ext === 'json' || ext === 'geojson') return 'geojson';
@@ -428,7 +424,6 @@ async function detectFileType(
     const reader = new FileReader();
     reader.onload = () => {
       const text = reader.result as string;
-      console.log('detectFileType: content preview =', text.substring(0, 150));
       if (text.trim().startsWith('{')) {
         try {
           JSON.parse(text);
@@ -447,10 +442,11 @@ async function detectFileType(
   });
 }
 
-export async function parseFile(file: File): Promise<ParsedRouteGeometry[]> {
-  console.log('[parseFile] Called with:', file.name);
+export async function parseFile(
+  file: File,
+  options: ImportRouteOptions = {}
+): Promise<ParsedRouteGeometry[]> {
   const fileType = await detectFileType(file);
-  console.log('[parseFile] Detected type:', fileType);
   switch (fileType) {
     case 'geojson':
       return parseGeoJSONFile(file);
@@ -459,10 +455,10 @@ export async function parseFile(file: File): Promise<ParsedRouteGeometry[]> {
     case 'csv':
     default:
       return [
-        {
-          points: await parseCsvFile(file),
-          geometryType: 'polyline',
-        },
+        buildCsvRouteGeometry(
+          await parseCsvFile(file),
+          options.csvGeometryType ?? 'polyline'
+        ),
       ];
   }
 }
@@ -470,21 +466,32 @@ export async function parseFile(file: File): Promise<ParsedRouteGeometry[]> {
 /**
  * 导入路由
  */
-export async function importRoute(file: File): Promise<void> {
+export async function importRoute(
+  file: File,
+  options: ImportRouteOptions = {}
+): Promise<void> {
   const routeName = file.name.replace(/\.[^/.]+$/, '');
-  const parsedRoutes = await parseFile(file);
+  const parsedRoutes = await parseFile(file, options);
 
   if (parsedRoutes.length === 0) {
     throw new Error('未能从文件中解析出可导入的几何对象');
   }
 
   const createdRoutes = parsedRoutes.map((parsed, index) => {
-    const minPoints = parsed.geometryType === 'polygon' ? 3 : 2;
+    const minPoints = getMinimumRoutePoints(parsed.geometryType);
     if (parsed.points.length < minPoints) {
+      const geometryName =
+        parsed.geometryType === 'point'
+          ? '点'
+          : parsed.geometryType === 'polygon'
+            ? '多边形'
+            : '折线';
       throw new Error(
         parsed.geometryType === 'polygon'
           ? '多边形至少需要 3 个点'
-          : '航点数量不足，至少需要 2 个点'
+          : parsed.geometryType === 'point'
+            ? '点几何至少需要 1 个点'
+            : `${geometryName}至少需要 ${minPoints} 个点`
       );
     }
 

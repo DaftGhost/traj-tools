@@ -15,7 +15,7 @@ export interface Point {
   lon: number;
 }
 
-export type GeometryType = 'polyline' | 'polygon';
+export type GeometryType = 'point' | 'polyline' | 'polygon';
 
 export interface HeatmapOptions {
   radius: number;
@@ -37,8 +37,8 @@ export interface Route {
   _display?: {
     simplified: Point[];
     holes?: Point[][];
-    layer: Leaflet.Polyline | Leaflet.Polygon | null;
-    markers: Leaflet.Marker[];
+    layer: Leaflet.Layer | null;
+    markers: Leaflet.Layer[];
   };
   /** 累计距离缓存: Map<pointIndex, cumulativeDistanceInMeters> */
   _distCache?: number[];
@@ -122,11 +122,102 @@ export interface SmoothDragContext {
 export function getRouteGeometryType(
   route: Pick<Route, 'geometryType'>
 ): GeometryType {
+  if (route.geometryType === 'point') return 'point';
   return route.geometryType === 'polygon' ? 'polygon' : 'polyline';
+}
+
+export function isPointRoute(route: Pick<Route, 'geometryType'>): boolean {
+  return getRouteGeometryType(route) === 'point';
+}
+
+export function isPolylineRoute(route: Pick<Route, 'geometryType'>): boolean {
+  return getRouteGeometryType(route) === 'polyline';
 }
 
 export function isPolygonRoute(route: Pick<Route, 'geometryType'>): boolean {
   return getRouteGeometryType(route) === 'polygon';
+}
+
+function resolveGeometryType(
+  geometry: GeometryType | Pick<Route, 'geometryType'>
+): GeometryType {
+  return typeof geometry === 'string'
+    ? geometry
+    : getRouteGeometryType(geometry);
+}
+
+export function getMinimumRoutePoints(
+  geometry: GeometryType | Pick<Route, 'geometryType'>
+): number {
+  switch (resolveGeometryType(geometry)) {
+    case 'point':
+      return 1;
+    case 'polygon':
+      return 3;
+    default:
+      return 2;
+  }
+}
+
+export function supportsArea(
+  geometry: GeometryType | Pick<Route, 'geometryType'>
+): boolean {
+  return resolveGeometryType(geometry) === 'polygon';
+}
+
+export function supportsLinearSegments(
+  geometry: GeometryType | Pick<Route, 'geometryType'>
+): boolean {
+  return resolveGeometryType(geometry) !== 'point';
+}
+
+export function supportsEndpointSelection(
+  geometry: GeometryType | Pick<Route, 'geometryType'>
+): boolean {
+  return resolveGeometryType(geometry) === 'polyline';
+}
+
+export function supportsBidirectionalExport(
+  geometry: GeometryType | Pick<Route, 'geometryType'>
+): boolean {
+  return resolveGeometryType(geometry) === 'polyline';
+}
+
+export function getRouteGeometryLabel(
+  geometry: GeometryType | Pick<Route, 'geometryType'>
+): 'Point' | 'Line' | 'Polygon' {
+  switch (resolveGeometryType(geometry)) {
+    case 'point':
+      return 'Point';
+    case 'polygon':
+      return 'Polygon';
+    default:
+      return 'Line';
+  }
+}
+
+export function getRouteGeometryDisplayName(
+  geometry: GeometryType | Pick<Route, 'geometryType'>,
+  pointCount: number
+): '点' | '点集' | '折线' | '多边形' {
+  switch (resolveGeometryType(geometry)) {
+    case 'point':
+      return pointCount === 1 ? '点' : '点集';
+    case 'polygon':
+      return '多边形';
+    default:
+      return '折线';
+  }
+}
+
+export function getRouteGeoJSONGeometryType(
+  route: Pick<Route, 'geometryType' | 'points'>
+): 'Point' | 'MultiPoint' | 'LineString' | 'Polygon' {
+  if (isPointRoute(route)) {
+    return route.points.length <= 1 ? 'Point' : 'MultiPoint';
+  }
+
+  return isPolygonRoute(route) ? 'Polygon' : 'LineString';
 }
 
 export function getPointsForRing(

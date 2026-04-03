@@ -6,6 +6,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { store, Point } from '../state/store';
 
+const clearMeasureMock = vi.fn();
+const clearSegmentExportMock = vi.fn();
+const setStatusMock = vi.fn();
+
 // Mock the geometry module functions
 vi.mock('./geometry', () => ({
   updateRouteDisplayGeometry: vi.fn(),
@@ -24,12 +28,28 @@ vi.mock('../tools/heatmap', () => ({
   initRouteHeatOptions: vi.fn(),
 }));
 
+vi.mock('../tools/measure', () => ({
+  clearMeasure: clearMeasureMock,
+}));
+
+vi.mock('../tools/segment', () => ({
+  clearSegmentExport: clearSegmentExportMock,
+}));
+
+vi.mock('../utils/uiStatus', () => ({
+  setStatus: setStatusMock,
+}));
+
 describe('mergeRoutes', () => {
   beforeEach(() => {
     // Clear routes before each test
     store.routes = [];
     store.selectedRouteId = null;
     store.selectedPoint = null;
+    store.clearEditHandle();
+    clearMeasureMock.mockClear();
+    clearSegmentExportMock.mockClear();
+    setStatusMock.mockClear();
   });
 
   it('should merge two routes by appending points', async () => {
@@ -126,5 +146,59 @@ describe('mergeRoutes', () => {
     mergeRoutes(route1.id, route2.id);
 
     expect(route1._distCache).toBeUndefined();
+  });
+
+  it('changes route geometry type and clears incompatible state', async () => {
+    const { addRoute, changeRouteGeometryType } = await import('./index');
+
+    const route = addRoute(
+      'PolygonRoute',
+      [
+        { lat: 30.0, lon: 120.0 },
+        { lat: 30.0, lon: 120.1 },
+        { lat: 30.1, lon: 120.1 },
+      ],
+      {
+        geometryType: 'polygon',
+        holes: [
+          [
+            { lat: 30.02, lon: 120.02 },
+            { lat: 30.03, lon: 120.03 },
+          ],
+        ],
+      }
+    );
+    store.selectedRouteId = route.id;
+    store.selectedPoint = { routeId: route.id, pointIdx: 0, ringIndex: 1 };
+    route._distCache = [0, 10, 20];
+    route._holeDistCaches = [[0, 5]];
+
+    const result = changeRouteGeometryType(route.id, 'polyline');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(result.ok).toBe(true);
+    expect(route.geometryType).toBe('polyline');
+    expect(route.holes).toEqual([]);
+    expect(route._distCache).toBeUndefined();
+    expect(route._holeDistCaches).toBeUndefined();
+    expect(store.selectedPoint).toBeNull();
+    expect(store.segmentExport.startPoint).toBeNull();
+    expect(store.segmentExport.endPoint).toBeNull();
+  });
+
+  it('rejects invalid geometry changes when point count is too small', async () => {
+    const { addRoute, changeRouteGeometryType } = await import('./index');
+
+    const route = addRoute('ShortRoute', [
+      { lat: 30.0, lon: 120.0 },
+      { lat: 30.1, lon: 120.1 },
+    ]);
+
+    const result = changeRouteGeometryType(route.id, 'polygon');
+
+    expect(result.ok).toBe(false);
+    expect(route.geometryType).toBe('polyline');
+    expect(setStatusMock).toHaveBeenCalled();
   });
 });

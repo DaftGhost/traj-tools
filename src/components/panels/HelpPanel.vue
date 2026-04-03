@@ -46,13 +46,36 @@
     <section class="panel-section help-panel">
       <h4>快捷键</h4>
       <table class="help-shortcuts">
-        <tr><td><kbd>Ctrl+B</kbd></td><td>切换侧边栏</td></tr>
-        <tr><td><kbd>Ctrl+E</kbd></td><td>开启/关闭编辑</td></tr>
-        <tr><td><kbd>Ctrl+M</kbd></td><td>开启/关闭测距</td></tr>
-        <tr><td><kbd>Ctrl+H</kbd></td><td>开启/关闭热力图</td></tr>
-        <tr><td><kbd>Ctrl+X</kbd></td><td>导出数据</td></tr>
-        <tr><td><kbd>Ctrl+Shift+P</kbd></td><td>命令面板</td></tr>
-        <tr><td><kbd>F1</kbd></td><td>打开帮助</td></tr>
+        <tbody>
+          <tr>
+            <td><kbd>Ctrl+B</kbd></td>
+            <td>切换侧边栏</td>
+          </tr>
+          <tr>
+            <td><kbd>Ctrl+E</kbd></td>
+            <td>开启/关闭编辑</td>
+          </tr>
+          <tr>
+            <td><kbd>Ctrl+M</kbd></td>
+            <td>开启/关闭测距</td>
+          </tr>
+          <tr>
+            <td><kbd>Ctrl+H</kbd></td>
+            <td>开启/关闭热力图</td>
+          </tr>
+          <tr>
+            <td><kbd>Ctrl+X</kbd></td>
+            <td>导出数据</td>
+          </tr>
+          <tr>
+            <td><kbd>Ctrl+Shift+P</kbd></td>
+            <td>命令面板</td>
+          </tr>
+          <tr>
+            <td><kbd>F1</kbd></td>
+            <td>打开帮助</td>
+          </tr>
+        </tbody>
       </table>
     </section>
 

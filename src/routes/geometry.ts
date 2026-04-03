@@ -4,6 +4,8 @@
  */
 
 import {
+  isPointRoute,
+  isPolylineRoute,
   store,
   Point,
   Route,
@@ -323,9 +325,12 @@ function smoothUpdatePoint(
   context.accumulatedDelta.lon += dLon;
 
   const latlngs = getLatLngArrayForRing(
-    route._display?.layer ?? null,
+    isPointRoute(route)
+      ? null
+      : ((route._display?.layer as L.Polyline | L.Polygon | null) ?? null),
     ringIndex
   );
+  const pointLayers = route._display?.markers ?? [];
 
   for (const item of context.items) {
     const lat = item.lat0 + item.w * context.accumulatedDelta.lat;
@@ -333,13 +338,31 @@ function smoothUpdatePoint(
     points[item.idx].lat = lat;
     points[item.idx].lon = lon;
 
+    if (isPointRoute(route)) {
+      const marker = pointLayers[item.idx];
+      if (
+        marker &&
+        'setLatLng' in marker &&
+        typeof marker.setLatLng === 'function'
+      ) {
+        marker.setLatLng([lat, lon]);
+      }
+      continue;
+    }
+
     if (latlngs?.[item.idx]) {
       latlngs[item.idx].lat = lat;
       latlngs[item.idx].lng = lon;
     }
   }
 
-  route._display?.layer?.redraw();
+  if (
+    route._display?.layer &&
+    'redraw' in route._display.layer &&
+    typeof route._display.layer.redraw === 'function'
+  ) {
+    route._display.layer.redraw();
+  }
 }
 
 /**
@@ -354,6 +377,13 @@ export function updateRouteDisplayGeometry(route: Route): void {
   if (route.editable) {
     display.simplified = route.points;
     display.holes = (route.holes ?? []).map((ring) => ring);
+    updateRouteLayer(route);
+    return;
+  }
+
+  if (isPointRoute(route)) {
+    display.simplified = route.points.map((point) => ({ ...point }));
+    display.holes = [];
     updateRouteLayer(route);
     return;
   }
@@ -392,6 +422,42 @@ function updateRouteLayer(route: Route): void {
 
   const geometryType = getRouteGeometryType(route);
   let layer: L.Polyline | L.Polygon;
+
+  if (geometryType === 'point') {
+    const pointLayers = visibleOuter.map((point, pointIdx) => {
+      const circle = L.circleMarker([point.lat, point.lon], {
+        radius: 6,
+        color: route.color,
+        weight: 2,
+        opacity: 0.95,
+        fillColor: route.color,
+        fillOpacity: route.selected ? 0.95 : 0.75,
+      });
+
+      circle.on('click', (event: L.LeafletMouseEvent) => {
+        event.originalEvent.stopPropagation();
+        store.selectRoute(route.id);
+        refreshRoutesList();
+
+        if (route.editable && route.selected) {
+          createDragMarker(route, pointIdx, L.latLng(point.lat, point.lon), 0);
+        }
+
+        updatePropertiesPanel();
+      });
+
+      return circle;
+    });
+
+    const pointGroup = L.featureGroup(pointLayers);
+    display.markers = pointLayers;
+    if (route.heatEnabled && store.heatmap.hideRoute) {
+      display.layer = pointGroup;
+    } else {
+      display.layer = pointGroup.addTo(map);
+    }
+    return;
+  }
 
   if (geometryType === 'polygon' && visibleOuter.length >= 3) {
     const holes = (display.holes ?? [])
@@ -685,7 +751,7 @@ export function selectRouteEndpoint(
     !route.editable ||
     route.points.length === 0 ||
     !store.map ||
-    isPolygonRoute(route)
+    !isPolylineRoute(route)
   ) {
     return false;
   }

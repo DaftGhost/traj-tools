@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import {
+  type GeometryType,
+  getRouteGeometryDisplayName,
+  getRouteGeometryType,
   getPointsForRing,
   getRouteVertexCount,
+  isPointRoute,
   isPolygonRoute,
+  supportsArea,
+  supportsLinearSegments,
   store,
 } from '../state/store';
+import { changeRouteGeometryType } from '../routes';
 import {
   calculateLineLength,
   calculatePolygonArea,
@@ -13,10 +20,13 @@ import {
 } from '../utils/geo';
 import { uiViewState } from '../ui/viewBridge';
 
-const routeSummary = computed(() => {
+const selectedRoute = computed(() => {
   void uiViewState.propertiesRevision;
+  return store.getSelectedRoute() ?? null;
+});
 
-  const route = store.getSelectedRoute();
+const routeSummary = computed(() => {
+  const route = selectedRoute.value;
   if (!route) {
     return {
       name: '-',
@@ -32,12 +42,14 @@ const routeSummary = computed(() => {
 
   return {
     name: route.name,
-    type: isPolygonRoute(route) ? '多边形' : '折线',
+    type: getRouteGeometryDisplayName(route, route.points.length),
     points: String(getRouteVertexCount(route)),
     holes: isPolygonRoute(route) ? String(route.holes?.length ?? 0) : '-',
     lengthLabel: isPolygonRoute(route) ? '周长' : '长度',
-    length: formatDistance(calculateRouteBoundaryLength(route)),
-    area: isPolygonRoute(route)
+    length: supportsLinearSegments(route)
+      ? formatDistance(calculateRouteBoundaryLength(route))
+      : '-',
+    area: supportsArea(route)
       ? formatArea(calculatePolygonArea(route.points, route.holes ?? []))
       : '-',
     status: route.editable ? '可编辑' : '只读',
@@ -81,7 +93,25 @@ const pointSummary = computed(() => {
 
 const showSelectionHint = computed(() => {
   void uiViewState.propertiesRevision;
-  return !store.getSelectedRoute() && !store.selectedPoint;
+  return !selectedRoute.value && !store.selectedPoint;
+});
+
+const selectedRouteGeometryType = computed({
+  get: (): GeometryType => {
+    const route = selectedRoute.value;
+    return route ? getRouteGeometryType(route) : 'polyline';
+  },
+  set: (value: GeometryType) => {
+    const route = selectedRoute.value;
+    if (!route) {
+      return;
+    }
+
+    const result = changeRouteGeometryType(route.id, value);
+    if (!result.ok) {
+      alert(result.message);
+    }
+  },
 });
 
 function formatDistance(totalMeters: number): string {
@@ -99,6 +129,10 @@ function calculateRouteBoundaryLength(route: {
   holes?: { lat: number; lon: number }[][];
   geometryType?: string;
 }): number {
+  if (isPointRoute(route as never)) {
+    return 0;
+  }
+
   if (!isPolygonRoute(route as never)) {
     return calculateLineLength(route.points);
   }
@@ -140,6 +174,19 @@ function calculateRouteBoundaryLength(route: {
         <div class="property-row">
           <label>类型</label>
           <span id="prop-route-type">{{ routeSummary.type }}</span>
+        </div>
+        <div class="property-row">
+          <label>几何</label>
+          <select
+            v-if="selectedRoute"
+            id="prop-route-geometry-type"
+            v-model="selectedRouteGeometryType"
+          >
+            <option value="point">Points</option>
+            <option value="polyline">LineString</option>
+            <option value="polygon">Polygon</option>
+          </select>
+          <span v-else id="prop-route-geometry-type">-</span>
         </div>
         <div class="property-row">
           <label>点数</label>

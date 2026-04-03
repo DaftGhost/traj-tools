@@ -3,7 +3,7 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { store, type Point } from '../state/store';
 import type { SnapRef } from '../types/refs';
 
@@ -352,6 +352,70 @@ describe('utils/snap', () => {
             seg.ringIndex === 1
         )
       ).toBe(true);
+    });
+
+    it('should skip point geometry routes when building segments', async () => {
+      const { getSnapGeometry } = await import('./snap');
+
+      store.routes = [
+        {
+          id: 'point-1',
+          name: 'Point Route',
+          color: '#00f',
+          editable: false,
+          visible: true,
+          selected: false,
+          geometryType: 'point',
+          points: [
+            { lat: 30, lon: 120 },
+            { lat: 30.1, lon: 120.1 },
+          ],
+          _display: {
+            simplified: [
+              { lat: 30, lon: 120 },
+              { lat: 30.1, lon: 120.1 },
+            ],
+            layer: null,
+            markers: [],
+          },
+        },
+      ] as unknown as typeof store.routes;
+
+      expect(getSnapGeometry()).toEqual([]);
+    });
+  });
+
+  describe('snapToRoutes', () => {
+    it('should snap to point geometry vertices even without segments', async () => {
+      const { snapToRoutes } = await import('./snap');
+
+      store.map = {
+        getZoom: () => 14,
+      } as never;
+      store.routes = [
+        {
+          id: 'point-1',
+          name: 'Point Route',
+          color: '#00f',
+          editable: false,
+          visible: true,
+          selected: false,
+          geometryType: 'point',
+          points: [{ lat: 30, lon: 120 }],
+        },
+      ] as unknown as typeof store.routes;
+
+      const snapped = snapToRoutes({ lat: 30.00001, lng: 120.00001 } as never);
+
+      expect(snapped).toMatchObject({
+        lat: 30,
+        lon: 120,
+        ref: {
+          routeId: 'point-1',
+          segIdx: 0,
+          segFrac: 0,
+        },
+      });
     });
   });
 

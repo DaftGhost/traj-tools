@@ -3,7 +3,7 @@
  */
 
 import * as L from 'leaflet';
-import { store } from '../state/store';
+import { isPointRoute, store } from '../state/store';
 import {
   initializeBaseLayers,
   baseLayers,
@@ -107,10 +107,18 @@ export function invalidateMapSize(): void {
 export function fitAllRoutes(): void {
   if (!store.map || store.routes.length === 0) return;
 
+  const allPoints = store.routes.flatMap((route) => route.points);
+  if (allPoints.length === 1) {
+    const point = allPoints[0];
+    store.map.setView(
+      [point.lat, point.lon],
+      Math.max(store.map.getZoom(), 14)
+    );
+    return;
+  }
+
   const bounds = L.latLngBounds(
-    store.routes.flatMap((r) =>
-      r.points.map((p) => [p.lat, p.lon] as L.LatLngExpression)
-    )
+    allPoints.map((point) => [point.lat, point.lon] as L.LatLngExpression)
   );
   store.map.fitBounds(bounds, { padding: [50, 50] });
 }
@@ -121,6 +129,15 @@ export function fitAllRoutes(): void {
 export function fitRoute(routeId: string): void {
   const route = store.getRouteById(routeId);
   if (!store.map || !route || route.points.length === 0) return;
+
+  if (route.points.length === 1 || isPointRoute(route)) {
+    const point = route.points[0];
+    store.map.setView(
+      [point.lat, point.lon],
+      Math.max(store.map.getZoom(), 14)
+    );
+    return;
+  }
 
   const bounds = L.latLngBounds(
     route.points.map((p) => [p.lat, p.lon] as L.LatLngExpression)

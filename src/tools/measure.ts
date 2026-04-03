@@ -3,7 +3,12 @@
  */
 
 import * as L from 'leaflet';
-import { store, getPointsForRing, isPolygonRoute } from '../state/store';
+import {
+  getPointsForRing,
+  isPolygonRoute,
+  store,
+  supportsLinearSegments,
+} from '../state/store';
 import { haversineDistance } from '../utils/geo';
 import { distanceMeters, snapToRoutes } from '../utils/snap';
 import type { SnapRef } from '../types/refs';
@@ -180,7 +185,7 @@ function getAlongRouteDistanceMeters(
   }
 
   const route = store.getRouteById(ref1.routeId);
-  if (!route || route.points.length < 2) {
+  if (!route || !supportsLinearSegments(route) || route.points.length < 2) {
     return null;
   }
 

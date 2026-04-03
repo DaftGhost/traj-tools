@@ -4,9 +4,19 @@
  */
 
 import * as L from 'leaflet';
-import { store, Point, getPointsForRing, isPolygonRoute } from '../state/store';
+import {
+  getPointsForRing,
+  isPolygonRoute,
+  store,
+  supportsLinearSegments,
+  type Point,
+} from '../state/store';
 import { pointsEqual } from '../utils/geo';
-import { snapToRoutes, pointToSegmentDistance, getSnapGeometry } from '../utils/snap';
+import {
+  snapToRoutes,
+  pointToSegmentDistance,
+  getSnapGeometry,
+} from '../utils/snap';
 import type { SnapRef } from '../types/refs';
 import { getRouteSegment } from '../routes/geometry';
 import { setStatus } from '../utils/uiStatus';
@@ -73,7 +83,9 @@ export function toggleSegmentExportMode(): void {
   renderSegmentExport();
 }
 
-export function clearSegmentExport({ exit }: { exit: boolean } = { exit: false }): void {
+export function clearSegmentExport(
+  { exit }: { exit: boolean } = { exit: false }
+): void {
   startPoint = null;
   endPoint = null;
   foundRoutes = [];
@@ -113,7 +125,9 @@ export function clearSegmentSelection(): void {
 }
 
 function updateSegmentButtons(): void {
-  const exportBtn = document.getElementById('export-segment') as HTMLButtonElement;
+  const exportBtn = document.getElementById(
+    'export-segment'
+  ) as HTMLButtonElement;
   if (exportBtn) {
     exportBtn.disabled = !segmentExportMode || !startPoint || !endPoint;
   }
@@ -141,7 +155,7 @@ function updateSegmentStatus(): void {
     lines.push('找到 ' + foundRoutes.length + ' 条航线');
     if (foundRoutes.length > 0) {
       const routeNames = foundRoutes
-        .map(id => store.getRouteById(id)?.name)
+        .map((id) => store.getRouteById(id)?.name)
         .filter(Boolean)
         .join('、');
       lines.push('航线：' + routeNames);
@@ -158,7 +172,7 @@ export function addSegmentPoint(latlng: L.LatLng): void {
   const point: SegmentPoint = {
     lat: snapped?.lat ?? latlng.lat,
     lon: snapped?.lon ?? latlng.lng,
-    ref: snapped?.ref ?? null
+    ref: snapped?.ref ?? null,
   };
 
   if (!startPoint) {
@@ -191,7 +205,7 @@ function updateSegmentHover(latlng: L.LatLng): void {
   hoverPoint = {
     lat: snapped?.lat ?? latlng.lat,
     lon: snapped?.lon ?? latlng.lng,
-    ref: snapped?.ref ?? null
+    ref: snapped?.ref ?? null,
   };
 
   scheduleRenderSegmentExport();
@@ -221,7 +235,7 @@ function renderSegmentExport(): void {
       weight: 3,
       color: '#22c55e',
       fillColor: '#ffffff',
-      fillOpacity: 1
+      fillOpacity: 1,
     })
       .bindTooltip('起点', { permanent: true, direction: 'top' })
       .addTo(segmentLayer);
@@ -234,20 +248,26 @@ function renderSegmentExport(): void {
       weight: 3,
       color: isHover ? '#f59e0b' : '#ef4444',
       fillColor: '#ffffff',
-      fillOpacity: 1
+      fillOpacity: 1,
     })
-      .bindTooltip(isHover ? '预览终点' : '终点', { permanent: true, direction: 'top' })
+      .bindTooltip(isHover ? '预览终点' : '终点', {
+        permanent: true,
+        direction: 'top',
+      })
       .addTo(segmentLayer);
   }
 
   if (start && end) {
     L.polyline(
-      [[start.lat, start.lon], [end.lat, end.lon]],
+      [
+        [start.lat, start.lon],
+        [end.lat, end.lon],
+      ],
       {
         color: '#7c3aed',
         weight: 2,
         opacity: 0.7,
-        dashArray: endPoint ? '0' : '6 6'
+        dashArray: endPoint ? '0' : '6 6',
       }
     ).addTo(segmentLayer);
   }
@@ -266,7 +286,7 @@ function renderSegmentExport(): void {
       const segment = extractRouteSegment(route, startPoint!, endPoint!);
       if (segment && segment.length > 0) {
         L.polyline(
-          segment.map(p => [p.lat, p.lon] as L.LatLngExpression),
+          segment.map((p) => [p.lat, p.lon] as L.LatLngExpression),
           { color: '#f59e0b', weight: 4, opacity: 0.8 }
         ).addTo(segmentLayer!);
       }
@@ -274,7 +294,10 @@ function renderSegmentExport(): void {
   }
 }
 
-function drawPerpendicularSearchArea(point: SegmentPoint, radius: number): void {
+function drawPerpendicularSearchArea(
+  point: SegmentPoint,
+  radius: number
+): void {
   if (!point.ref || !store.map) return;
 
   const route = store.getRouteById(point.ref.routeId);
@@ -295,7 +318,7 @@ function drawPerpendicularSearchArea(point: SegmentPoint, radius: number): void 
     weight: 2,
     opacity: 0.5,
     fillOpacity: 0.1,
-    dashArray: '5 5'
+    dashArray: '5 5',
   }).addTo(segmentLayer!);
 }
 
@@ -324,8 +347,10 @@ function findRoutesInPerpendicularRange(): void {
 
     const frac = point.ref.segFrac;
 
-    const lat = segment.start.lat + (segment.end.lat - segment.start.lat) * frac;
-    const lon = segment.start.lon + (segment.end.lon - segment.start.lon) * frac;
+    const lat =
+      segment.start.lat + (segment.end.lat - segment.start.lat) * frac;
+    const lon =
+      segment.start.lon + (segment.end.lon - segment.start.lon) * frac;
 
     for (const r of store.routes) {
       if (r.id === route.id) continue;
@@ -333,7 +358,12 @@ function findRoutesInPerpendicularRange(): void {
 
       const segments = getSnapGeometry(r.id);
       for (const snapSegment of segments) {
-        const dist = pointToSegmentDistance(lat, lon, snapSegment.start, snapSegment.end);
+        const dist = pointToSegmentDistance(
+          lat,
+          lon,
+          snapSegment.start,
+          snapSegment.end
+        );
         if (dist <= radius) {
           found.add(r.id);
           break;
@@ -354,14 +384,19 @@ function findRoutesInPerpendicularRange(): void {
 
 // REMOVED: pointToSegmentDistance - now imported from utils/snap.ts
 
-function interpolateRefPoint(route: { points: Point[] }, ref: SnapRef): Point | null {
+function interpolateRefPoint(
+  route: { points: Point[] },
+  ref: SnapRef
+): Point | null {
   const ringIndex = ref.ringIndex ?? 0;
   const segment = getRouteSegment(route as never, ref.segIdx, ringIndex);
   if (!segment) return null;
 
   return {
-    lat: segment.start.lat + (segment.end.lat - segment.start.lat) * ref.segFrac,
-    lon: segment.start.lon + (segment.end.lon - segment.start.lon) * ref.segFrac,
+    lat:
+      segment.start.lat + (segment.end.lat - segment.start.lat) * ref.segFrac,
+    lon:
+      segment.start.lon + (segment.end.lon - segment.start.lon) * ref.segFrac,
   };
 }
 
@@ -371,7 +406,11 @@ function pushUniquePoint(points: Point[], point: Point): void {
   }
 }
 
-function extractOpenPathSegment(points: Point[], startRef: SnapRef, endRef: SnapRef): Point[] {
+function extractOpenPathSegment(
+  points: Point[],
+  startRef: SnapRef,
+  endRef: SnapRef
+): Point[] {
   let startIdx = startRef.segIdx;
   let endIdx = endRef.segIdx;
   let startFrac = startRef.segFrac;
@@ -384,8 +423,12 @@ function extractOpenPathSegment(points: Point[], startRef: SnapRef, endRef: Snap
 
   const segment: Point[] = [];
   const startPoint = {
-    lat: points[startIdx].lat + (points[startIdx + 1].lat - points[startIdx].lat) * startFrac,
-    lon: points[startIdx].lon + (points[startIdx + 1].lon - points[startIdx].lon) * startFrac,
+    lat:
+      points[startIdx].lat +
+      (points[startIdx + 1].lat - points[startIdx].lat) * startFrac,
+    lon:
+      points[startIdx].lon +
+      (points[startIdx + 1].lon - points[startIdx].lon) * startFrac,
   };
   pushUniquePoint(segment, startFrac > 0.001 ? startPoint : points[startIdx]);
 
@@ -397,21 +440,40 @@ function extractOpenPathSegment(points: Point[], startRef: SnapRef, endRef: Snap
 
   if (endFrac < 0.999 && endIdx + 1 < points.length) {
     pushUniquePoint(segment, {
-      lat: points[endIdx].lat + (points[endIdx + 1].lat - points[endIdx].lat) * endFrac,
-      lon: points[endIdx].lon + (points[endIdx + 1].lon - points[endIdx].lon) * endFrac,
+      lat:
+        points[endIdx].lat +
+        (points[endIdx + 1].lat - points[endIdx].lat) * endFrac,
+      lon:
+        points[endIdx].lon +
+        (points[endIdx + 1].lon - points[endIdx].lon) * endFrac,
     });
   }
 
   return segment;
 }
 
-function extractClosedRingArc(points: Point[], startRef: SnapRef, endRef: SnapRef): Point[] {
+function extractClosedRingArc(
+  points: Point[],
+  startRef: SnapRef,
+  endRef: SnapRef
+): Point[] {
   const segment: Point[] = [];
   const startPoint = {
-    lat: points[startRef.segIdx].lat + (points[(startRef.segIdx + 1) % points.length].lat - points[startRef.segIdx].lat) * startRef.segFrac,
-    lon: points[startRef.segIdx].lon + (points[(startRef.segIdx + 1) % points.length].lon - points[startRef.segIdx].lon) * startRef.segFrac,
+    lat:
+      points[startRef.segIdx].lat +
+      (points[(startRef.segIdx + 1) % points.length].lat -
+        points[startRef.segIdx].lat) *
+        startRef.segFrac,
+    lon:
+      points[startRef.segIdx].lon +
+      (points[(startRef.segIdx + 1) % points.length].lon -
+        points[startRef.segIdx].lon) *
+        startRef.segFrac,
   };
-  pushUniquePoint(segment, startRef.segFrac > 0.001 ? startPoint : points[startRef.segIdx]);
+  pushUniquePoint(
+    segment,
+    startRef.segFrac > 0.001 ? startPoint : points[startRef.segIdx]
+  );
 
   let segIdx = startRef.segIdx;
   while (segIdx !== endRef.segIdx) {
@@ -422,8 +484,16 @@ function extractClosedRingArc(points: Point[], startRef: SnapRef, endRef: SnapRe
 
   if (endRef.segFrac < 0.999) {
     pushUniquePoint(segment, {
-      lat: points[endRef.segIdx].lat + (points[(endRef.segIdx + 1) % points.length].lat - points[endRef.segIdx].lat) * endRef.segFrac,
-      lon: points[endRef.segIdx].lon + (points[(endRef.segIdx + 1) % points.length].lon - points[endRef.segIdx].lon) * endRef.segFrac,
+      lat:
+        points[endRef.segIdx].lat +
+        (points[(endRef.segIdx + 1) % points.length].lat -
+          points[endRef.segIdx].lat) *
+          endRef.segFrac,
+      lon:
+        points[endRef.segIdx].lon +
+        (points[(endRef.segIdx + 1) % points.length].lon -
+          points[endRef.segIdx].lon) *
+          endRef.segFrac,
     });
   } else {
     pushUniquePoint(segment, points[(endRef.segIdx + 1) % points.length]);
@@ -432,11 +502,25 @@ function extractClosedRingArc(points: Point[], startRef: SnapRef, endRef: SnapRe
   return segment;
 }
 
-export function extractRouteSegment(route: { id: string; points: Point[]; holes?: Point[][] }, start: SegmentPoint, end: SegmentPoint): Point[] | null {
-  if (!route || !route.points || route.points.length < 2) return null;
+export function extractRouteSegment(
+  route: { id: string; points: Point[]; holes?: Point[][] },
+  start: SegmentPoint,
+  end: SegmentPoint
+): Point[] | null {
+  if (
+    !route ||
+    !route.points ||
+    route.points.length < 2 ||
+    !supportsLinearSegments(route as never)
+  )
+    return null;
   if (!start || !end) return null;
 
-  if (start.ref?.routeId === route.id && end.ref?.routeId === route.id && (start.ref.ringIndex ?? 0) === (end.ref.ringIndex ?? 0)) {
+  if (
+    start.ref?.routeId === route.id &&
+    end.ref?.routeId === route.id &&
+    (start.ref.ringIndex ?? 0) === (end.ref.ringIndex ?? 0)
+  ) {
     const ringIndex = start.ref.ringIndex ?? 0;
     const ring = getPointsForRing(route as never, ringIndex);
     if (ring.length < 2) return null;
@@ -456,7 +540,10 @@ export function extractRouteSegment(route: { id: string; points: Point[]; holes?
     const startPoint = interpolateRefPoint(route, start.ref);
     if (!startPoint) return null;
 
-    pushUniquePoint(segment, start.ref.segFrac > 0.001 ? startPoint : ring[start.ref.segIdx]);
+    pushUniquePoint(
+      segment,
+      start.ref.segFrac > 0.001 ? startPoint : ring[start.ref.segIdx]
+    );
     for (let i = start.ref.segIdx + 1; i < ring.length; i++) {
       pushUniquePoint(segment, ring[i]);
     }
@@ -481,7 +568,7 @@ export function extractRouteSegment(route: { id: string; points: Point[]; holes?
     return segment;
   }
 
-  return route.points.map(p => ({ ...p }));
+  return route.points.map((p) => ({ ...p }));
 }
 
 export function isSegmentExportMode(): boolean {

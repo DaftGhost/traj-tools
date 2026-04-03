@@ -2,7 +2,7 @@
  * Command definitions for the command palette
  */
 
-import { store, isPolygonRoute } from '../state/store';
+import { isPolygonRoute, isPolylineRoute, store } from '../state/store';
 import { fitAllRoutes } from '../map';
 import { switchBaseLayer } from '../map/layers';
 
@@ -21,92 +21,104 @@ export function getCommands(): CommandItem[] {
       name: '导入文件',
       description: '导入 CSV 文件',
       action: () => document.getElementById('file-input')?.click(),
-      category: '文件'
+      category: '文件',
     },
     {
       id: 'file.export',
       name: '导出数据',
       description: '导出当前航线数据',
-      action: () => import('../export/index').then(m => m.exportData()).catch(console.error),
-      category: '文件'
+      action: () =>
+        import('../export/index')
+          .then((m) => m.exportData())
+          .catch(console.error),
+      category: '文件',
     },
     {
       id: 'file.exportSegment',
       name: '导出航段',
       description: '导出选中的航段',
-      action: () => import('../export/index').then(m => m.exportSegment()).catch(console.error),
-      category: '文件'
+      action: () =>
+        import('../export/index')
+          .then((m) => m.exportSegment())
+          .catch(console.error),
+      category: '文件',
     },
     {
       id: 'view.fitAll',
       name: '显示全部航线',
       description: '缩放以显示所有航线',
       action: fitAllRoutes,
-      category: '视图'
+      category: '视图',
     },
     {
       id: 'view.zoomIn',
       name: '放大',
       description: '放大地图视图',
       action: () => store.map?.zoomIn(),
-      category: '视图'
+      category: '视图',
     },
     {
       id: 'view.zoomOut',
       name: '缩小',
       description: '缩小地图视图',
       action: () => store.map?.zoomOut(),
-      category: '视图'
+      category: '视图',
     },
     {
       id: 'map.osm',
       name: '切换到底图: OpenStreetMap',
       action: () => switchBaseLayer('osm'),
-      category: '底图'
+      category: '底图',
     },
     {
       id: 'map.satellite',
       name: '切换到底图: 卫星图',
       action: () => switchBaseLayer('satellite'),
-      category: '底图'
+      category: '底图',
     },
     {
       id: 'map.dark',
       name: '切换到底图: 暗色地图',
       action: () => switchBaseLayer('dark'),
-      category: '底图'
+      category: '底图',
     },
     {
       id: 'map.light',
       name: '切换到底图: 浅色地图',
       action: () => switchBaseLayer('light'),
-      category: '底图'
+      category: '底图',
     },
     {
       id: 'edit.newRoute',
       name: '新建航线',
       description: '开始绘制新的折线航线',
-      action: () => import('../tools/draw').then(m => {
-        if (m.getDrawingModeKind?.() === 'polyline') {
-          m.finishDrawingRoute();
-        } else if (!m.isDrawingMode()) {
-          m.startDrawingRoute();
-        }
-      }).catch(console.error),
-      category: '编辑'
+      action: () =>
+        import('../tools/draw')
+          .then((m) => {
+            if (m.getDrawingModeKind?.() === 'polyline') {
+              m.finishDrawingRoute();
+            } else if (!m.isDrawingMode()) {
+              m.startDrawingRoute();
+            }
+          })
+          .catch(console.error),
+      category: '编辑',
     },
     {
       id: 'edit.newPolygon',
       name: '新建多边形',
       description: '开始绘制新的多边形',
-      action: () => import('../tools/draw').then(m => {
-        if (m.getDrawingModeKind?.() === 'polygon') {
-          m.finishDrawingRoute();
-        } else if (!m.isDrawingMode()) {
-          m.startDrawingPolygon();
-        }
-      }).catch(console.error),
-      category: '编辑'
+      action: () =>
+        import('../tools/draw')
+          .then((m) => {
+            if (m.getDrawingModeKind?.() === 'polygon') {
+              m.finishDrawingRoute();
+            } else if (!m.isDrawingMode()) {
+              m.startDrawingPolygon();
+            }
+          })
+          .catch(console.error),
+      category: '编辑',
     },
     {
       id: 'edit.addHole',
@@ -123,15 +135,17 @@ export function getCommands(): CommandItem[] {
           return;
         }
 
-        import('../tools/draw').then(m => {
-          if (m.getDrawingModeKind?.() === 'hole') {
-            m.finishDrawingRoute();
-          } else if (!m.isDrawingMode()) {
-            m.startDrawingHole(route.id);
-          }
-        }).catch(console.error);
+        import('../tools/draw')
+          .then((m) => {
+            if (m.getDrawingModeKind?.() === 'hole') {
+              m.finishDrawingRoute();
+            } else if (!m.isDrawingMode()) {
+              m.startDrawingHole(route.id);
+            }
+          })
+          .catch(console.error);
       },
-      category: '编辑'
+      category: '编辑',
     },
     {
       id: 'edit.toggleMode',
@@ -141,11 +155,15 @@ export function getCommands(): CommandItem[] {
         const route = store.getSelectedRoute();
         if (route) {
           route.editable = !route.editable;
-          import('../routes/geometry').then(m => m.updateRouteDisplayGeometry(route)).catch(console.error);
-          import('../ui/index').then(m => m.updateRouteList()).catch(console.error);
+          import('../routes/geometry')
+            .then((m) => m.updateRouteDisplayGeometry(route))
+            .catch(console.error);
+          import('../ui/index')
+            .then((m) => m.updateRouteList())
+            .catch(console.error);
         }
       },
-      category: '编辑'
+      category: '编辑',
     },
     {
       id: 'edit.deleteSelected',
@@ -154,12 +172,18 @@ export function getCommands(): CommandItem[] {
       action: () => {
         if (store.selectedPoint) {
           const selected = store.selectedPoint;
-          import('../routes/geometry').then(m => {
-            m.deleteNodeFromRoute(selected.routeId, selected.pointIdx, selected.ringIndex ?? 0);
-          }).catch(console.error);
+          import('../routes/geometry')
+            .then((m) => {
+              m.deleteNodeFromRoute(
+                selected.routeId,
+                selected.pointIdx,
+                selected.ringIndex ?? 0
+              );
+            })
+            .catch(console.error);
         }
       },
-      category: '编辑'
+      category: '编辑',
     },
     {
       id: 'edit.mergeRoutes',
@@ -171,8 +195,8 @@ export function getCommands(): CommandItem[] {
           alert('请先选择一条航线');
           return;
         }
-        if (isPolygonRoute(route)) {
-          alert('暂不支持多边形合并');
+        if (!isPolylineRoute(route)) {
+          alert('当前仅支持折线合并');
           return;
         }
         if (store.routes.length < 2) {
@@ -181,21 +205,27 @@ export function getCommands(): CommandItem[] {
         }
         document.getElementById('merge-routes')?.click();
       },
-      category: '编辑'
+      category: '编辑',
     },
     {
       id: 'tools.toggleMeasure',
       name: '切换测距工具',
       description: '开启/关闭距离测量工具',
-      action: () => import('../tools/measure').then(m => m.toggleMeasureMode()).catch(console.error),
-      category: '工具'
+      action: () =>
+        import('../tools/measure')
+          .then((m) => m.toggleMeasureMode())
+          .catch(console.error),
+      category: '工具',
     },
     {
       id: 'tools.toggleSegment',
       name: '切换航段导出模式',
       description: '开启/关闭航段选择模式',
-      action: () => import('../tools/segment').then(m => m.toggleSegmentExportMode()).catch(console.error),
-      category: '工具'
+      action: () =>
+        import('../tools/segment')
+          .then((m) => m.toggleSegmentExportMode())
+          .catch(console.error),
+      category: '工具',
     },
     {
       id: 'tools.toggleHeatmap',
@@ -203,11 +233,15 @@ export function getCommands(): CommandItem[] {
       description: '开启/关闭航点热力图',
       action: () => {
         store.heatmap.enabled = !store.heatmap.enabled;
-        const checkbox = document.getElementById('heatmap-enabled') as HTMLInputElement;
+        const checkbox = document.getElementById(
+          'heatmap-enabled'
+        ) as HTMLInputElement;
         if (checkbox) checkbox.checked = store.heatmap.enabled;
-        import('../tools/heatmap').then(m => m.toggleHeatLayer(store.heatmap.enabled)).catch(console.error);
+        import('../tools/heatmap')
+          .then((m) => m.toggleHeatLayer(store.heatmap.enabled))
+          .catch(console.error);
       },
-      category: '工具'
-    }
+      category: '工具',
+    },
   ];
 }

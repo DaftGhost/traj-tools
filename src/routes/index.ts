@@ -2,8 +2,22 @@
  * 航线管理模块
  */
 
-import { store, Point, Route, GeometryType, getRouteGeometryType } from '../state/store';
-import { updateRouteDisplayGeometry, setUIRefreshFunctions, refreshRoutesList, updatePropertiesPanel } from './geometry';
+import {
+  GeometryType,
+  getMinimumRoutePoints,
+  getRouteGeometryDisplayName,
+  getRouteGeometryType,
+  Point,
+  Route,
+  store,
+} from '../state/store';
+import {
+  refreshRoutesList,
+  setUIRefreshFunctions,
+  updatePropertiesPanel,
+  updateRouteDisplayGeometry,
+} from './geometry';
+import { setStatus } from '../utils/uiStatus';
 
 // 导出 UI 刷新函数供其他模块使用
 export { setUIRefreshFunctions };
@@ -22,8 +36,8 @@ export function addRoute(
   const route = store.addRoute(name, points, options);
   // 初始化热力图选项
   import('../tools/heatmap')
-    .then(m => m.initRouteHeatOptions(route))
-    .catch(err => console.error('Failed to initialize heat options:', err));
+    .then((m) => m.initRouteHeatOptions(route))
+    .catch((err) => console.error('Failed to initialize heat options:', err));
   updateRouteDisplayGeometry(route);
   // 刷新 UI
   refreshRoutesList();
@@ -68,6 +82,89 @@ export function toggleRouteVisibility(routeId: string): void {
     }
     route._display?.markers.forEach((m) => m.remove());
   }
+}
+
+function clearRouteDisplay(route: Route): void {
+  route._display?.layer?.remove();
+  route._display?.markers.forEach((marker) => marker.remove());
+  if (route._display) {
+    route._display.layer = null;
+    route._display.markers = [];
+  }
+}
+
+function buildGeometryTypeChangeError(
+  route: Route,
+  geometryType: GeometryType
+): string | null {
+  const minPoints = getMinimumRoutePoints(geometryType);
+  if (route.points.length >= minPoints) {
+    return null;
+  }
+
+  if (geometryType === 'point') {
+    return '点类型至少需要 1 个点';
+  }
+
+  if (geometryType === 'polygon') {
+    return `航线“${route.name}”至少需要 3 个点才能改为多边形`;
+  }
+
+  return `航线“${route.name}”至少需要 2 个点才能改为折线`;
+}
+
+export function changeRouteGeometryType(
+  routeId: string,
+  geometryType: GeometryType
+): { ok: boolean; message: string } {
+  const route = store.getRouteById(routeId);
+  if (!route) {
+    return { ok: false, message: '找不到要修改的航线' };
+  }
+
+  const currentGeometryType = getRouteGeometryType(route);
+  if (currentGeometryType === geometryType) {
+    return { ok: true, message: '航线类型未发生变化' };
+  }
+
+  const errorMessage = buildGeometryTypeChangeError(route, geometryType);
+  if (errorMessage) {
+    setStatus(errorMessage);
+    return { ok: false, message: errorMessage };
+  }
+
+  clearRouteDisplay(route);
+  store.clearEditHandle();
+  store.selectedPoint = null;
+  route.geometryType = geometryType;
+  route.holes = geometryType === 'polygon' ? (route.holes ?? []) : [];
+  route._distCache = undefined;
+  route._holeDistCaches = undefined;
+
+  if (route.visible) {
+    updateRouteDisplayGeometry(route);
+  }
+
+  store.segmentExport.startPoint = null;
+  store.segmentExport.endPoint = null;
+
+  import('../tools/segment')
+    .then((module) => module.clearSegmentExport())
+    .catch(() => undefined);
+  import('../tools/measure')
+    .then((module) => module.clearMeasure())
+    .catch(() => undefined);
+
+  refreshRoutesList();
+  updatePropertiesPanel();
+
+  const displayName = getRouteGeometryDisplayName(
+    geometryType,
+    route.points.length
+  );
+  const message = `已将航线“${route.name}”切换为${displayName}`;
+  setStatus(message);
+  return { ok: true, message };
 }
 
 /**
@@ -135,4 +232,5 @@ export function mergeRoutes(routeId1: string, routeId2: string): Route | null {
 // 挂载全局函数（用于向后兼容）
 (window as unknown as Record<string, unknown>).addRoute = addRoute;
 (window as unknown as Record<string, unknown>).deleteRoute = deleteRoute;
-(window as unknown as Record<string, unknown>).toggleRouteVisibility = toggleRouteVisibility;
+(window as unknown as Record<string, unknown>).toggleRouteVisibility =
+  toggleRouteVisibility;
