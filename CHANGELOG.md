@@ -8,37 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `src/utils/uiStatus.ts` - Unified UI status utilities for `setStatus` and `updateStatusCoords`
-- `src/utils/snap.ts` - Consolidated snap utilities (`snapToRoutes`, `pointToSegmentDistance`, `sqSegDist`, `distanceMeters`)
-- `src/types/refs.ts` - Unified `SnapRef` interface for route snapping
-- `src/types/heatLayer.ts` - Type-safe heat layer utilities with guards
-- `src/ui/commandDefinitions.ts` - Command definitions extracted for maintainability
-- Test coverage for new utility modules (56 new tests)
+
+- Optional local MBTiles development service via `bun run dev:mbtiles`
+- Raster and vector MBTiles catalog support, including mixed local source listings in the basemap selector
+- Built-in Leaflet VectorGrid fallback styling for local vector MBTiles backed by metadata-derived `vector_layers`
 
 ### Changed
-- Refactored duplicate code from `tools/draw.ts`, `tools/heatmap.ts`, `tools/segment.ts` into `utils/uiStatus.ts`
-- Refactored duplicate `snapToRoutes` from `measure.ts` and `segment.ts` into `utils/snap.ts`
-- Consolidated `Point` interface to single source in `state/store.ts`
-- `tools/measure.ts` now uses unified snap utilities
-- `tools/segment.ts` now uses unified snap utilities
+
+- Local MBTiles tile serving now supports server-side decompression before browser rendering
+- Project documentation now reflects the Bun-based MBTiles workflow, current command set, and the present Leaflet-only vector MBTiles limits
+- Agent guidance now documents the current build, script typecheck, lint, and test realities
 
 ### Fixed
-- Heatmap type safety improved with proper type guards instead of `as unknown as` casts
 
-### Code Quality
-- Added error handling (.catch) to all dynamic imports in command definitions
-- Added comprehensive `isHeatLayer()` type guard checking both methods
-- Added `HeatLatLng` type with optional intensity for leaflet.heat compatibility
-- Added Leaflet type import to heatLayer.ts
-- Fixed misleading comments in snap.test.ts (projection coordinates)
-- Fixed test assertions to properly check preconditions instead of silent pass
+- Vector MBTiles are now excluded unless the source metadata declares `format=pbf` and usable `vector_layers`
+- Documentation no longer implies unsupported vector features such as custom styles, labels, sprites, POI overlays, or MapLibre integration
 
 ### Tests
-- Added `src/utils/uiStatus.test.ts` (12 tests)
-- Added `src/utils/snap.test.ts` (17 tests)
-- Added `src/types/heatLayer.test.ts` (15 tests)
-- Added `src/ui/commandDefinitions.test.ts` (12 tests)
-- Total test count: 81 passing tests
+
+- `bun run test` currently passes with 247 tests
 
 ## [2.1.0] - Previous
 

@@ -54,10 +54,39 @@ src/
    TIANDITU_API_KEY=你的天地图密钥
    ```
 
-2. 运行本地开发服务器：
+2. 前端开发模式，推荐同时启动本地 MBTiles 服务：
+
+   ```bash
+   MBTILES_DIR=./data/mbtiles bun run dev:mbtiles
+   bun run dev
+   ```
+
+   前端默认访问地址为 `http://localhost:3000`。
+
+3. 如果需要联调 Worker 代理与本地 MBTiles：
+
+   ```bash
+   bun run build
+   MBTILES_DIR=./data/mbtiles bun run dev:mbtiles
+   MBTILES_PROXY_URL=http://127.0.0.1:3001 bun run dev:worker
+   ```
+
+   Worker 默认访问地址为 `http://localhost:8787`。
+   `bun run dev:worker` 会直接服务 `dist/` 产物，所以前端改动后需要重新执行 `bun run build`。
+
+4. 如果只需要本地 Worker 代理天地图，也可以直接运行：
    ```bash
    bun run dev:worker
    ```
+
+## 本地 MBTiles 工作流
+
+- `bun run dev:mbtiles` 会启动 Bun 本地服务，扫描 `MBTILES_DIR` 目录下的顶层 `.mbtiles` 文件。
+- 栅格 MBTiles 支持 `png`、`jpg`、`jpeg`、`webp`，会作为普通底图显示。
+- 矢量 MBTiles 只有在 metadata 中声明 `format=pbf`，且 `json` 字段包含有效 `vector_layers` 时才会加入目录。
+- 应用允许栅格与矢量 MBTiles 混合出现，都会出现在底图选择器中。
+- 矢量 MBTiles 在界面中显示为 `本地矢量 MBTiles · ...`，服务端会先解压瓦片，再交给浏览器中的 Leaflet VectorGrid 渲染。
+- 当前仅提供内置默认矢量样式，项目仍然只使用 Leaflet，不支持自定义矢量样式、标签、sprites、POI 覆盖层或 MapLibre。
 
 ## 生产部署
 
@@ -73,19 +102,25 @@ src/
 
 ## 命令
 
-| 命令                 | 说明                           |
-| -------------------- | ------------------------------ |
-| `bun install`        | 安装依赖                       |
-| `bun run build`      | 构建 SPA                       |
-| `bun run dev`        | Vite 开发服务器（不含 Worker） |
-| `bun run dev:worker` | 本地 Worker 开发服务器         |
-| `bun run deploy`     | 构建并部署到 Cloudflare        |
-| `bun run test`       | 运行测试                       |
-| `bun run test:watch` | 监听模式运行测试               |
+| 命令                  | 说明                           |
+| --------------------- | ------------------------------ |
+| `bun install`         | 安装依赖                       |
+| `bun run build`       | 前端类型检查并构建 SPA         |
+| `bun run build:all`   | `build` 的别名                 |
+| `bun run dev`         | Vite 开发服务器（不含 Worker） |
+| `bun run dev:mbtiles` | 本地 MBTiles 目录与瓦片服务    |
+| `bun run dev:worker`  | 本地 Worker 开发服务器         |
+| `bun run deploy`      | 构建并部署到 Cloudflare        |
+| `bun run test`        | 运行测试                       |
+| `bun run test:ui`     | Vitest UI                      |
+| `bun run test:watch`  | 监听模式运行测试               |
+| `bun run typecheck`   | 仅运行前端类型检查             |
+| `bun run lint`        | 检查 `src` 下 TS/Vue 文件      |
+| `bun run format`      | 格式化 `src` 下文件            |
 
 ## 测试
 
-项目使用 Vitest 进行测试，测试文件位于各模块目录下：
+项目使用 Vitest 进行测试，当前已验证 `bun run test` 通过，总计 247 个测试。测试文件位于各模块目录下：
 
 | 测试文件                            | 覆盖模块    |
 | ----------------------------------- | ----------- |

@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Practical working guide for coding agents in `traj-tools`.
-This file reflects the repository state verified on 2026-04-03.
+This file reflects the repository state verified on 2026-04-14.
 
 ## Rule Sources
 
@@ -13,28 +13,34 @@ This file reflects the repository state verified on 2026-04-03.
 
 ## Repository Snapshot
 
-- Stack: Vite 5, TypeScript 5, Vue 3, Vitest 1, Leaflet 1.9, Cloudflare Workers.
+- Stack: Vite 5, TypeScript 5, Vue 3, Vitest 1, Leaflet 1.9, Leaflet.VectorGrid, Cloudflare Workers, Bun runtime scripts.
 - Package manager: `bun`.
-- Frontend entrypoint: `src/main.ts`; worker entrypoint: `src/worker.ts`.
+- Frontend entrypoint: `src/main.ts`; worker entrypoint: `src/worker.ts`; local MBTiles service entrypoint: `scripts/mbtiles-server.ts`.
 - Main application shell and layout live in `src/App.vue` and `src/components/`.
 - Central mutable state singleton: `src/state/store.ts`.
 - Route geometry and CRUD logic live mainly in `src/routes/geometry.ts` and `src/routes/index.ts`.
 - Import/export logic live in `src/import/index.ts` and `src/export/index.ts`.
-- Most UI behavior is imperative DOM wiring in `src/ui/index.ts`, not reactive Vue state.
+- Basemap registration lives in `src/map/layers.ts`; built-in vector MBTiles styling lives in `src/map/vectorStyle.ts`.
+- UI is split between Vue single-file components under `src/components/` and imperative initialization/event wiring in `src/ui/index.ts`.
+- Local MBTiles support is Leaflet-only. Raster MBTiles render as tile layers, vector MBTiles render through the built-in VectorGrid style path. Custom vector styles, labels, sprites, POI overlays, and MapLibre integration are not supported.
 - Generated output lives in `dist/` and `dist-worker/`; do not treat them as hand-edited source.
 
 ## Install And Dev Commands
 
 - Install dependencies: `bun install`
 - Frontend dev server: `bun run dev` on port `3000`
+- Local MBTiles dev server: `MBTILES_DIR=./data/mbtiles bun run dev:mbtiles`
 - Worker dev server: `bun run dev:worker`
 - Preview production build: `bun run preview`; deploy frontend + worker: `bun run deploy`
+- When running the Worker against local MBTiles, set `MBTILES_PROXY_URL=http://127.0.0.1:3001` before `bun run dev:worker`.
 
 ## Build, Lint, And Format Commands
 
 - Production build + type check: `bun run build`
 - Alias of build: `bun run build:all`
-- Lint: `bun run lint` (`eslint src --ext ts`, so it only targets TypeScript under `src/`)
+- Frontend type check only: `bun run typecheck`
+- Script type check example: `bunx tsc -p tsconfig.scripts.json --noEmit`
+- Lint: `bun run lint` (`eslint src --ext ts,vue`, so it targets TypeScript and Vue files under `src/`)
 - Format: `bun run format` (`prettier --write src`, so it only formats files under `src/`)
 
 ## Test Commands
@@ -46,17 +52,19 @@ This file reflects the repository state verified on 2026-04-03.
 
 ## Verified Command Status
 
-- `bun run test` passes; current verified Vitest result is 11 test files and 128 tests. `bun run test -- src/routes/geometry.test.ts` also passes.
-- `bun run build` passes and performs TypeScript validation because it runs `tsc && vite build`.
-- `bun run build` emits Vite warnings about modules that are both statically and dynamically imported, but the build still succeeds. There is no standalone `typecheck` script.
-- `bun run lint` now passes after enabling `@typescript-eslint/parser` and cleaning up the resulting real rule violations.
+- `bunx tsc -p tsconfig.scripts.json --noEmit` passes for the Bun script entrypoints.
+- `bun run test` passes; current verified Vitest result is 247 passing tests.
+- `bun run build` passes and performs frontend TypeScript validation because it runs `vue-tsc --noEmit -p tsconfig.json && vite build`.
+- `bun run build` may still emit Vite chunking warnings, but the build succeeds.
+- `bun run lint` is available for `src/**/*.ts` and `src/**/*.vue`. Do not claim it passes unless you actually run it in the current task.
 
 ## Validation Expectations For Agents
 
-- For any TypeScript change, run `bun run build` before finishing.
-- Run `bun run lint` when you touch linted TypeScript files or ESLint config.
+- For any TypeScript or Vue change, run `bun run build` before finishing.
+- Run `bun run lint` when you touch linted TypeScript files, Vue files, or ESLint config.
+- Run `bunx tsc -p tsconfig.scripts.json --noEmit` when you modify files under `scripts/` or shared code used by those Bun entrypoints.
 - For behavior changes, run the narrowest relevant test file first.
-- For route geometry, import/export, or shared UI/store changes, run `bun run test` before finishing.
+- For route geometry, import/export, basemap, MBTiles, or shared UI/store changes, run `bun run test` before finishing.
 - If you modify lint config, re-run `bun run lint` and report the real result.
 - Do not claim lint passes unless you actually ran it successfully.
 
@@ -139,6 +147,7 @@ This file reflects the repository state verified on 2026-04-03.
 
 - Worker runtime expects `TIANDITU_API_KEY`.
 - Local Worker development uses `.dev.vars`.
+- Local MBTiles development can use `MBTILES_DIR`, `MBTILES_PORT`, and `MBTILES_PROXY_URL`.
 - Do not hardcode API keys or commit local env files with real credentials.
 
 ## Files Agents Should Usually Avoid Editing
