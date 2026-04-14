@@ -5,8 +5,21 @@
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import FilesPanel from './FilesPanel.vue';
+import * as L from 'leaflet';
+import {
+  initializeBaseLayers,
+  resetBaseLayerStateForTests,
+} from '../../map/layers';
 import { type Route, store } from '../../state/store';
 import { resetViewBridgeStateForTests } from '../../ui/viewBridge';
+
+vi.mock('leaflet.vectorgrid', () => ({
+  VectorGridProtobuf: vi.fn(
+    (url: string, options?: Record<string, unknown>) => {
+      return L.tileLayer(url, options as L.TileLayerOptions);
+    }
+  ),
+}));
 
 function createRoute(id: string, name = `Route-${id}`): Route {
   return {
@@ -52,6 +65,7 @@ function createPolygonRoute(id: string, name = `Polygon-${id}`): Route {
 describe('FilesPanel', () => {
   beforeEach(() => {
     resetViewBridgeStateForTests();
+    resetBaseLayerStateForTests();
     store.routes = [];
     store.selectedRouteId = null;
     store.selectedPoint = null;
@@ -105,5 +119,86 @@ describe('FilesPanel', () => {
     await wrapper.get('.route-checkbox').setValue(false);
 
     expect(route.visible).toBe(false);
+  });
+
+  it('renders built-in basemap options', () => {
+    const wrapper = mount(FilesPanel);
+
+    const optionValues = wrapper
+      .findAll('#map-select option')
+      .map((option) => option.attributes('value'));
+
+    expect(optionValues).toContain('osm');
+    expect(optionValues).toContain('satellite');
+    expect(optionValues).toContain('cartoDark');
+    expect(optionValues).toContain('cartoLight');
+  });
+
+  it('renders vector MBTiles entries with a distinct label while preserving raster labels', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = input.toString();
+        if (url === '/api/tianditu/health') {
+          return new Response(JSON.stringify({ available: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        if (url === '/api/mbtiles/catalog') {
+          return new Response(
+            JSON.stringify({
+              sources: [
+                {
+                  id: 'raster-source',
+                  label: 'Raster Tiles',
+                  format: 'png',
+                  minZoom: 0,
+                  maxZoom: 14,
+                  bounds: [73, 18, 135, 54],
+                  attribution: 'Local Raster',
+                  sourceType: 'raster',
+                },
+                {
+                  id: 'vector-source',
+                  label: 'Vector Tiles',
+                  format: 'pbf',
+                  minZoom: 0,
+                  maxZoom: 14,
+                  bounds: [73, 18, 135, 54],
+                  attribution: 'Local Vector',
+                  sourceType: 'vector',
+                  vectorLayers: [
+                    {
+                      id: 'roads',
+                      description: 'Roads',
+                      minZoom: 0,
+                      maxZoom: 14,
+                    },
+                  ],
+                },
+              ],
+            }),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            }
+          );
+        }
+
+        throw new Error(`Unexpected request: ${url}`);
+      })
+    );
+
+    await initializeBaseLayers();
+
+    const wrapper = mount(FilesPanel);
+    const optionLabels = wrapper
+      .findAll('#map-select option')
+      .map((option) => option.text());
+
+    expect(optionLabels).toContain('本地 MBTiles · Raster Tiles');
+    expect(optionLabels).toContain('本地矢量 MBTiles · Vector Tiles');
   });
 });

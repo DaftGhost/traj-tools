@@ -64,6 +64,7 @@ export interface UIState {
   propertiesPanelCollapsed: boolean;
   sideBarCollapsed: boolean;
   routeSearchQuery: string;
+  localVectorMbtilesZoomLockEnabled: boolean;
 }
 
 export interface EditHandle {
@@ -286,6 +287,7 @@ class StateStore {
     propertiesPanelCollapsed: false,
     sideBarCollapsed: false,
     routeSearchQuery: '',
+    localVectorMbtilesZoomLockEnabled: false,
   };
 
   // 工具状态

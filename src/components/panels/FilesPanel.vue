@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { getBaseLayerOptions, type BaseLayerOption } from '../../map/layers';
 import { deleteRoute, toggleRouteVisibility } from '../../routes';
 import {
   getRouteVertexCount,
@@ -21,6 +22,14 @@ const routeSearchQuery = computed({
   set: (value: string) => setRouteSearchQuery(value),
 });
 
+type FilesPanelBaseLayerOption = BaseLayerOption & {
+  displayLabel: string;
+  sourceType?: 'raster' | 'vector';
+};
+
+const LOCAL_MBTILES_PREFIX = '本地 MBTiles · ';
+const LOCAL_VECTOR_MBTILES_PREFIX = '本地矢量 MBTiles · ';
+
 const filteredRoutes = computed(() => {
   void uiViewState.routeListRevision;
 
@@ -34,6 +43,28 @@ const routeCount = computed(() => {
   void uiViewState.routeListRevision;
   return store.routes.length;
 });
+
+const baseLayerOptions = computed(() => {
+  void uiViewState.baseLayerRevision;
+  return getBaseLayerOptions().map((option) => ({
+    ...option,
+    displayLabel: getBaseLayerDisplayLabel(option),
+  })) as FilesPanelBaseLayerOption[];
+});
+
+function getBaseLayerDisplayLabel(option: BaseLayerOption): string {
+  if (
+    option.sourceType !== 'vector' ||
+    !option.label.startsWith(LOCAL_MBTILES_PREFIX)
+  ) {
+    return option.label;
+  }
+
+  return option.label.replace(
+    LOCAL_MBTILES_PREFIX,
+    LOCAL_VECTOR_MBTILES_PREFIX
+  );
+}
 
 function getRouteSummary(route: Route): string {
   const vertexCount = getRouteVertexCount(route);
@@ -93,13 +124,13 @@ function handleDeleteRoute(route: Route): void {
       <div class="base-map-selector">
         <label>底图选择</label>
         <select id="map-select">
-          <option value="tdtVector">天地图矢量</option>
-          <option value="tdtSatellite">天地图影像</option>
-          <option value="tdtTerrain">天地图地形</option>
-          <option value="osm">OpenStreetMap</option>
-          <option value="satellite">Esri卫星</option>
-          <option value="cartoDark">暗色地图</option>
-          <option value="cartoLight">亮色地图</option>
+          <option
+            v-for="option in baseLayerOptions"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.displayLabel }}
+          </option>
         </select>
       </div>
     </section>

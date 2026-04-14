@@ -16,7 +16,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "leaflet.vectorgrid": ["src/utils/leafletVectorGridShim.ts"]
     },
     "types": ["@cloudflare/workers-types"]
   },

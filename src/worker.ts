@@ -17,6 +17,7 @@ const CACHE_STALE_IF_ERROR = 2592000; // 30 days
 
 interface Env {
   TIANDITU_API_KEY: string;
+  MBTILES_PROXY_URL?: string;
 }
 
 interface WorkerContext {
@@ -64,16 +65,63 @@ async function handleHealthCheck(env: Env): Promise<Response> {
       headers: { 'Content-Type': 'application/json' },
     });
   }
-  return new Response(JSON.stringify({ available: false, reason: 'TIANDITU_API_KEY not configured' }), {
-    status: 503,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return new Response(
+    JSON.stringify({
+      available: false,
+      reason: 'TIANDITU_API_KEY not configured',
+    }),
+    {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    }
+  );
+}
+
+function getMbtilesProxyOrigin(env: Env): string | null {
+  const proxyUrl = env.MBTILES_PROXY_URL?.trim();
+  if (!proxyUrl) {
+    return null;
+  }
+
+  return proxyUrl.replace(/\/+$/, '');
+}
+
+async function handleMbtilesRequest(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  const proxyOrigin = getMbtilesProxyOrigin(env);
+  const url = new URL(request.url);
+
+  if (!proxyOrigin) {
+    if (url.pathname === '/api/mbtiles/catalog') {
+      return new Response(JSON.stringify({ sources: [] }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+
+    return new Response('MBTiles proxy not configured', { status: 503 });
+  }
+
+  const proxyUrl = new URL(`${url.pathname}${url.search}`, `${proxyOrigin}/`);
+  return fetch(new Request(proxyUrl, request));
 }
 
 /**
  * Proxy tile request to Tianditu with cache-first + stale-on-error strategy
  */
-async function handleTileProxy(env: Env, layer: string, z: string, y: string, x: string, ctx: WorkerContext): Promise<Response> {
+async function handleTileProxy(
+  env: Env,
+  layer: string,
+  z: string,
+  y: string,
+  x: string,
+  ctx: WorkerContext
+): Promise<Response> {
   const key = env.TIANDITU_API_KEY;
   const cacheKey = getCacheKey(layer, z, y, x);
   const cache = caches as unknown as { default: Cache };
@@ -134,22 +182,25 @@ async function fetchAndCacheTile(
   // Extract base layer name (e.g., 'vec' from 'vec_w')
   const baseLayer = layer.replace('_w', '');
 
-  const url = `${baseUrl}/${layer}/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${baseLayer}&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${apiKey}`
-    .replace('{z}', z)
-    .replace('{y}', y)
-    .replace('{x}', x);
+  const url =
+    `${baseUrl}/${layer}/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${baseLayer}&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${apiKey}`
+      .replace('{z}', z)
+      .replace('{y}', y)
+      .replace('{x}', x);
 
   try {
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'Accept': 'image/png,image/jpeg,image/*',
+        Accept: 'image/png,image/jpeg,image/*',
         'User-Agent': 'traj-tools/2.0',
       },
     });
 
     if (!response.ok) {
-      return new Response(`Tianditu error: ${response.status}`, { status: response.status });
+      return new Response(`Tianditu error: ${response.status}`, {
+        status: response.status,
+      });
     }
 
     // Only cache successful responses (200-299)
@@ -228,12 +279,10 @@ async function serveSPA(request: Request): Promise<Response> {
     if (error instanceof NotFoundError) {
       // For SPA routing, serve index.html for 404s
       try {
-        return await getAssetFromKV(
-          { request } as unknown as FetchEvent,
-          {
-            mapRequestToAsset: () => new Request(new URL('/index.html', request.url), request),
-          }
-        );
+        return await getAssetFromKV({ request } as unknown as FetchEvent, {
+          mapRequestToAsset: () =>
+            new Request(new URL('/index.html', request.url), request),
+        });
       } catch {
         return new Response('Not Found', { status: 404 });
       }
@@ -246,7 +295,11 @@ async function serveSPA(request: Request): Promise<Response> {
  * Main worker fetch handler
  */
 export default {
-  async fetch(request: Request, env: Env, ctx: WorkerContext): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: WorkerContext
+  ): Promise<Response> {
     const url = new URL(request.url);
 
     // Health check endpoint
@@ -254,8 +307,14 @@ export default {
       return handleHealthCheck(env);
     }
 
+    if (url.pathname.startsWith('/api/mbtiles/')) {
+      return handleMbtilesRequest(request, env);
+    }
+
     // Tianditu tile proxy: /api/tianditu/{layer}/{z}/{y}/{x}
-    const tileMatch = url.pathname.match(/^\/api\/tianditu\/([a-z_]+)\/(\d+)\/(\d+)\/(\d+)$/);
+    const tileMatch = url.pathname.match(
+      /^\/api\/tianditu\/([a-z_]+)\/(\d+)\/(\d+)\/(\d+)$/
+    );
     if (tileMatch) {
       const [, layer, z, y, x] = tileMatch;
       return handleTileProxy(env, layer, z, y, x, ctx);

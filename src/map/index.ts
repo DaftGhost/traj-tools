@@ -8,10 +8,15 @@ import {
   initializeBaseLayers,
   baseLayers,
   getLastSelectedBaseLayer,
+  switchBaseLayer,
   tiandituAvailable,
 } from './layers';
 import { refreshAllRouteDisplayGeometry } from '../routes/geometry';
-import { updateStatusCoordsText, updateStatusZoomText } from '../ui/viewBridge';
+import {
+  refreshBaseLayerView,
+  updateStatusCoordsText,
+  updateStatusZoomText,
+} from '../ui/viewBridge';
 
 // 修复 Leaflet 图标问题
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)
@@ -29,6 +34,7 @@ L.Icon.Default.mergeOptions({
 export async function initializeMap(): Promise<void> {
   // 初始化底图（异步，等待健康检查完成）
   await initializeBaseLayers();
+  refreshBaseLayerView();
 
   // 创建地图实例
   store.map = L.map('map', {
@@ -42,12 +48,10 @@ export async function initializeMap(): Promise<void> {
 
   // 添加上次选择的底图
   const lastLayerName = getLastSelectedBaseLayer();
-  const lastLayer = baseLayers[lastLayerName];
-  if (lastLayer) {
-    lastLayer.addTo(store.map);
+  if (baseLayers[lastLayerName]) {
+    switchBaseLayer(lastLayerName);
   } else {
-    // 回退到 OSM
-    baseLayers.osm?.addTo(store.map);
+    switchBaseLayer('osm');
   }
 
   // 绑定地图事件

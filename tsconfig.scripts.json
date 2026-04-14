@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "noEmit": true,
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "types": ["node", "bun"]
+  },
+  "include": ["scripts/**/*.ts", "src/mbtiles/**/*.ts", "vite.config.ts"]
+}

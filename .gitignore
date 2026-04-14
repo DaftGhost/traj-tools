@@ -32,6 +32,9 @@ Thumbs.db
 .env.*.local
 .dev.vars
 
+# Local MBTiles data
+data/mbtiles/*.mbtiles
+
 # Test coverage
 coverage/
 
