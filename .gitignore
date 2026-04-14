@@ -53,4 +53,9 @@ CLAUDE.md
 implment/
 thoughts/
 
-**/.tldr/**
+**/.tldr/
+
+# QA artifacts
+.playwright-mcp/
+vector-mbtiles-readability-qa.png
+vector-mbtiles-readability-runtime-fixed.png
