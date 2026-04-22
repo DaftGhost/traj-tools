@@ -9,6 +9,19 @@
       <div class="setting-item">
         <label class="setting-checkbox">
           <input
+            v-model="showOriginalRouteGeometry"
+            type="checkbox"
+            @change="handleShowOriginalRouteGeometryChange"
+          />
+          <span>非编辑模式显示原始几何</span>
+        </label>
+        <p class="hint">
+          开启后，所有可见且未处于编辑模式的航线会使用原始点位渲染；关闭后恢复当前显示简化行为。
+        </p>
+      </div>
+      <div class="setting-item">
+        <label class="setting-checkbox">
+          <input
             v-model="localVectorZoomLock"
             type="checkbox"
             @change="handleLocalVectorZoomLockChange"
@@ -38,15 +51,23 @@ import {
   isLocalVectorMbtilesZoomLockEnabled,
   setLocalVectorMbtilesZoomLockEnabled,
 } from '../../map/layers';
+import { refreshAllRouteDisplayGeometry } from '../../routes/geometry';
 import { store } from '../../state/store';
 
 const localVectorZoomLock = ref(false);
+const showOriginalRouteGeometry = ref(false);
 
 onMounted(() => {
+  showOriginalRouteGeometry.value = store.uiState.showOriginalRouteGeometry;
   const enabled = isLocalVectorMbtilesZoomLockEnabled();
   localVectorZoomLock.value = enabled;
   store.uiState.localVectorMbtilesZoomLockEnabled = enabled;
 });
+
+function handleShowOriginalRouteGeometryChange(): void {
+  store.uiState.showOriginalRouteGeometry = showOriginalRouteGeometry.value;
+  refreshAllRouteDisplayGeometry();
+}
 
 function handleLocalVectorZoomLockChange(): void {
   setLocalVectorMbtilesZoomLockEnabled(localVectorZoomLock.value);
