@@ -157,4 +157,117 @@ describe('routes/geometry display simplification', () => {
     expect(route._display?.simplified).not.toBe(points);
     expect(route._display?.holes).toEqual([]);
   });
+
+  it('uses raw non-edit geometry when the global original-geometry toggle is enabled', async () => {
+    vi.doMock('../utils/geo', async () => {
+      const actual =
+        await vi.importActual<typeof import('../utils/geo')>('../utils/geo');
+      return {
+        ...actual,
+        visvalingamWhyattIndices: vi.fn(() => [0, 3]),
+      };
+    });
+
+    const { updateRouteDisplayGeometry } = await import('./geometry');
+    const { store } = await import('../state/store');
+    const points: Point[] = [
+      { lat: 30.0, lon: 120.0 },
+      { lat: 30.05, lon: 120.05 },
+      { lat: 30.1, lon: 120.1 },
+      { lat: 30.15, lon: 120.15 },
+    ];
+    const route = createRoute(points);
+    store.routes = [];
+    store.selectedRouteId = null;
+    store.selectedPoint = null;
+    store.clearEditHandle();
+    store.map = {} as never;
+    store.uiState.showOriginalRouteGeometry = true;
+
+    updateRouteDisplayGeometry(route);
+
+    expect(route._display?.simplified).toEqual(points);
+    expect(route._display?.simplified).not.toBe(points);
+  });
+
+  it('keeps edit mode rendering live original geometry even when the global toggle is enabled', async () => {
+    const { updateRouteDisplayGeometry } = await import('./geometry');
+    const { store } = await import('../state/store');
+    const outer: Point[] = [
+      { lat: 30.0, lon: 120.0 },
+      { lat: 30.0, lon: 120.2 },
+      { lat: 30.2, lon: 120.2 },
+      { lat: 30.2, lon: 120.0 },
+    ];
+    const hole: Point[] = [
+      { lat: 30.05, lon: 120.05 },
+      { lat: 30.05, lon: 120.1 },
+      { lat: 30.1, lon: 120.1 },
+    ];
+    const route = createRoute(outer);
+    route.geometryType = 'polygon';
+    route.holes = [hole];
+    route.editable = true;
+    store.routes = [];
+    store.selectedRouteId = null;
+    store.selectedPoint = null;
+    store.clearEditHandle();
+    store.map = {} as never;
+    store.uiState.showOriginalRouteGeometry = true;
+
+    updateRouteDisplayGeometry(route);
+
+    expect(route._display?.simplified).toBe(outer);
+    expect(route._display?.holes?.[0]).toBe(hole);
+  });
+
+  it('refreshes only visible routes when the global original-geometry toggle changes', async () => {
+    vi.doMock('../utils/geo', async () => {
+      const actual =
+        await vi.importActual<typeof import('../utils/geo')>('../utils/geo');
+      return {
+        ...actual,
+        visvalingamWhyattIndices: vi.fn(() => [0, 3]),
+      };
+    });
+
+    const { refreshAllRouteDisplayGeometry, updateRouteDisplayGeometry } =
+      await import('./geometry');
+    const { store } = await import('../state/store');
+    const visiblePoints: Point[] = [
+      { lat: 30.0, lon: 120.0 },
+      { lat: 30.05, lon: 120.05 },
+      { lat: 30.1, lon: 120.1 },
+      { lat: 30.15, lon: 120.15 },
+    ];
+    const hiddenPoints: Point[] = [
+      { lat: 31.0, lon: 121.0 },
+      { lat: 31.05, lon: 121.05 },
+      { lat: 31.1, lon: 121.1 },
+      { lat: 31.15, lon: 121.15 },
+    ];
+    const visibleRoute = createRoute(visiblePoints);
+    const hiddenRoute = createRoute(hiddenPoints);
+    hiddenRoute.id = 'route-2';
+    hiddenRoute.visible = false;
+    store.routes = [visibleRoute, hiddenRoute];
+    store.selectedRouteId = null;
+    store.selectedPoint = null;
+    store.clearEditHandle();
+    store.map = {} as never;
+    store.uiState.showOriginalRouteGeometry = false;
+
+    updateRouteDisplayGeometry(visibleRoute);
+    updateRouteDisplayGeometry(hiddenRoute);
+
+    expect(visibleRoute._display?.simplified).toHaveLength(2);
+    expect(hiddenRoute._display?.simplified).toHaveLength(2);
+
+    store.uiState.showOriginalRouteGeometry = true;
+    refreshAllRouteDisplayGeometry();
+
+    expect(visibleRoute._display?.simplified).toEqual(visiblePoints);
+    expect(visibleRoute._display?.simplified).not.toBe(visiblePoints);
+    expect(hiddenRoute._display?.simplified).toHaveLength(2);
+  });
 });

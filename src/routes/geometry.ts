@@ -53,6 +53,19 @@ function ensureDisplay(route: Route): NonNullable<Route['_display']> {
   return route._display;
 }
 
+function setRouteDisplayToOriginalGeometry(
+  route: Route,
+  display: NonNullable<Route['_display']>,
+  live: boolean = false
+): void {
+  display.simplified = live
+    ? route.points
+    : route.points.map((point) => ({ ...point }));
+  display.holes = (route.holes ?? []).map((ring) =>
+    live ? ring : ring.map((point) => ({ ...point }))
+  );
+}
+
 function invalidateRouteDistanceCaches(route: Route): void {
   route._distCache = undefined;
   route._holeDistCaches = undefined;
@@ -375,15 +388,13 @@ export function updateRouteDisplayGeometry(route: Route): void {
   const display = ensureDisplay(route);
 
   if (route.editable) {
-    display.simplified = route.points;
-    display.holes = (route.holes ?? []).map((ring) => ring);
+    setRouteDisplayToOriginalGeometry(route, display, true);
     updateRouteLayer(route);
     return;
   }
 
-  if (isPointRoute(route)) {
-    display.simplified = route.points.map((point) => ({ ...point }));
-    display.holes = [];
+  if (store.uiState.showOriginalRouteGeometry || isPointRoute(route)) {
+    setRouteDisplayToOriginalGeometry(route, display);
     updateRouteLayer(route);
     return;
   }
