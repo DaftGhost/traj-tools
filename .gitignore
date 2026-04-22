@@ -25,6 +25,8 @@ Thumbs.db
 
 # Worktrees
 .worktrees/
+.sisyphus/
+opencode.json
 
 # Environment variables (local development)
 .env
