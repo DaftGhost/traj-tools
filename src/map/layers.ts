@@ -5,10 +5,9 @@
 import { store } from '../state/store';
 import * as L from 'leaflet';
 import { VectorGridProtobuf } from 'leaflet.vectorgrid';
-import {
-  getMbtilesSourceType,
-  type MbtilesCatalogResponse,
-  type MbtilesCatalogSource,
+import type {
+  MbtilesCatalogResponse,
+  MbtilesCatalogSource,
 } from '../mbtiles/shared';
 import { buildVectorLayerStyles } from './vectorStyle';
 import type { NormalizedVectorLayer } from '../mbtiles/vector-metadata';
@@ -21,8 +20,6 @@ const vectorGridCreate = VectorGridProtobuf as (
 // 底图配置
 export const baseLayers: Record<string, L.Layer> = {};
 export let tiandituAvailable = false;
-
-const LOCAL_VECTOR_MBTILES_ZOOM_LOCK_KEY = 'localVectorMbtilesZoomLockEnabled';
 
 export type BaseLayerOption = {
   value: string;
@@ -38,114 +35,6 @@ const builtInBaseLayerOptions: BaseLayerOption[] = [
 ];
 
 let localMbtilesSources: MbtilesCatalogSource[] = [];
-let localVectorMbtilesZoomLockEnabled = false;
-let lockedLocalVectorNativeZoom: number | null = null;
-
-function readLocalVectorMbtilesZoomLockSetting(): boolean {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  return localStorage.getItem(LOCAL_VECTOR_MBTILES_ZOOM_LOCK_KEY) === 'true';
-}
-
-function writeLocalVectorMbtilesZoomLockSetting(enabled: boolean): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  localStorage.setItem(LOCAL_VECTOR_MBTILES_ZOOM_LOCK_KEY, String(enabled));
-}
-
-function getCurrentBaseLayerName(): string | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  return localStorage.getItem('selectedBaseLayer');
-}
-
-function getLocalMbtilesSource(layerName: string): MbtilesCatalogSource | null {
-  const sourceId = layerName.startsWith('mbtiles:')
-    ? layerName.slice('mbtiles:'.length)
-    : layerName;
-
-  return localMbtilesSources.find((source) => source.id === sourceId) ?? null;
-}
-
-function isVectorMbtilesSource(source: MbtilesCatalogSource | null): boolean {
-  if (!source) return false;
-
-  return (
-    source.sourceType === 'vector' ||
-    (source.sourceType == null &&
-      getMbtilesSourceType(source.format) === 'vector')
-  );
-}
-
-function resolveLockedNativeZoom(source: MbtilesCatalogSource): number {
-  if (lockedLocalVectorNativeZoom == null) {
-    const currentZoom = store.map?.getZoom() ?? source.maxZoom;
-    const clampedZoom = Math.min(
-      source.maxZoom,
-      Math.max(source.minZoom, Math.round(currentZoom))
-    );
-    lockedLocalVectorNativeZoom = clampedZoom;
-  }
-
-  return lockedLocalVectorNativeZoom;
-}
-
-function applyLocalVectorMbtilesZoomLock(layerName?: string): void {
-  if (!store.map) {
-    return;
-  }
-
-  const activeLayerName = layerName ?? getCurrentBaseLayerName();
-  if (!activeLayerName?.startsWith('mbtiles:')) {
-    return;
-  }
-
-  const source = getLocalMbtilesSource(activeLayerName);
-  if (!source || !isVectorMbtilesSource(source)) {
-    return;
-  }
-
-  const layer = baseLayers[activeLayerName];
-  const gridLayer = layer as
-    | (L.GridLayer & {
-        options: L.GridLayerOptions & {
-          minNativeZoom?: number;
-          maxNativeZoom?: number;
-        };
-      })
-    | undefined;
-  if (!gridLayer?.options) {
-    return;
-  }
-
-  if (localVectorMbtilesZoomLockEnabled) {
-    const lockedZoom = resolveLockedNativeZoom(source);
-    gridLayer.options.minNativeZoom = lockedZoom;
-    gridLayer.options.maxNativeZoom = lockedZoom;
-  } else {
-    delete gridLayer.options.minNativeZoom;
-    gridLayer.options.maxNativeZoom = source.maxZoom;
-  }
-
-  gridLayer.redraw?.();
-}
-
-export function isLocalVectorMbtilesZoomLockEnabled(): boolean {
-  return localVectorMbtilesZoomLockEnabled;
-}
-
-export function setLocalVectorMbtilesZoomLockEnabled(enabled: boolean): void {
-  localVectorMbtilesZoomLockEnabled = enabled;
-  writeLocalVectorMbtilesZoomLockSetting(enabled);
-  lockedLocalVectorNativeZoom = null;
-  applyLocalVectorMbtilesZoomLock();
-}
 
 function clearBaseLayers(): void {
   Object.keys(baseLayers).forEach((key) => {
@@ -214,12 +103,7 @@ async function registerLocalMbtilesLayers(
     const key = `mbtiles:${source.id}`;
     const url = `/api/mbtiles/${encodeURIComponent(source.id)}/{z}/{x}/{y}`;
 
-    const isVector =
-      source.sourceType === 'vector' ||
-      (source.sourceType == null &&
-        getMbtilesSourceType(source.format) === 'vector');
-
-    if (isVector && source.vectorLayers) {
+    if (source.sourceType === 'vector' && source.vectorLayers) {
       const normalizedLayers: NormalizedVectorLayer[] = source.vectorLayers.map(
         (vl) => ({
           id: vl.id,
@@ -232,8 +116,8 @@ async function registerLocalMbtilesLayers(
 
       baseLayers[key] = (await vectorGridCreate(url, {
         minZoom: source.minZoom,
-        maxZoom: 18,
         maxNativeZoom: source.maxZoom,
+        maxZoom: 18,
         attribution: source.attribution,
         bounds: toLayerBounds(source.bounds),
         vectorTileLayerStyles: styles,
@@ -277,8 +161,6 @@ async function checkTiandituAvailable(): Promise<boolean> {
 export async function initializeBaseLayers(): Promise<void> {
   clearBaseLayers();
   localMbtilesSources = [];
-  localVectorMbtilesZoomLockEnabled = readLocalVectorMbtilesZoomLockSetting();
-  lockedLocalVectorNativeZoom = null;
 
   tiandituAvailable = await checkTiandituAvailable();
 
@@ -372,11 +254,6 @@ export async function initializeBaseLayers(): Promise<void> {
 export function switchBaseLayer(layerName: string): void {
   const layer = baseLayers[layerName];
   if (layer && store.map) {
-    const previousLayerName = getCurrentBaseLayerName();
-    if (previousLayerName !== layerName) {
-      lockedLocalVectorNativeZoom = null;
-    }
-
     layer.addTo(store.map);
     Object.values(baseLayers).forEach((l) => {
       if (l !== layer) {
@@ -385,7 +262,6 @@ export function switchBaseLayer(layerName: string): void {
     });
     // 保存选择到 localStorage
     localStorage.setItem('selectedBaseLayer', layerName);
-    applyLocalVectorMbtilesZoomLock(layerName);
   }
 }
 
@@ -412,6 +288,4 @@ export function resetBaseLayerStateForTests(): void {
   clearBaseLayers();
   tiandituAvailable = false;
   localMbtilesSources = [];
-  localVectorMbtilesZoomLockEnabled = false;
-  lockedLocalVectorNativeZoom = null;
 }

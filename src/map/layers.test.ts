@@ -12,8 +12,6 @@ import {
   getLastSelectedBaseLayer,
   initializeBaseLayers,
   resetBaseLayerStateForTests,
-  setLocalVectorMbtilesZoomLockEnabled,
-  switchBaseLayer,
 } from './layers';
 import { store } from '../state/store';
 
@@ -339,7 +337,8 @@ describe('map/layers', () => {
         calls: Array<
           [
             string,
-            { vectorTileLayerStyles?: Record<string, unknown> } | undefined,
+            | { styles?: Record<string, unknown>; vectorTileLayerStyles?: Record<string, unknown> }
+            | undefined,
           ]
         >;
       };
@@ -348,8 +347,8 @@ describe('map/layers', () => {
       '/api/mbtiles/vector-source/{z}/{x}/{y}',
       expect.objectContaining({
         minZoom: 0,
-        maxZoom: 18,
         maxNativeZoom: 14,
+        maxZoom: 18,
         attribution: 'Local Vector',
         interactive: false,
         vectorTileLayerStyles: expect.objectContaining({
@@ -359,131 +358,5 @@ describe('map/layers', () => {
     );
     const vectorOptions = vectorGridMock.mock.calls[0]?.[1];
     expect(vectorOptions?.vectorTileLayerStyles?.roads_labels).toEqual([]);
-  });
-
-  it('registers vector MBTiles by format fallback when sourceType is absent', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = input.toString();
-        if (url === '/api/tianditu/health') {
-          return new Response(JSON.stringify({ available: false }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-
-        if (url === '/api/mbtiles/catalog') {
-          return new Response(
-            JSON.stringify({
-              sources: [
-                {
-                  id: 'pbf-without-source-type',
-                  label: 'PBF No SourceType',
-                  format: 'pbf',
-                  minZoom: 0,
-                  maxZoom: 14,
-                  bounds: [73, 18, 135, 54],
-                  attribution: 'Local',
-                  vectorLayers: [
-                    {
-                      id: 'water',
-                      description: 'Water',
-                      minZoom: 0,
-                      maxZoom: 14,
-                    },
-                  ],
-                },
-              ],
-            }),
-            {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' },
-            }
-          );
-        }
-
-        throw new Error('Unexpected request: ' + url);
-      })
-    );
-
-    await initializeBaseLayers();
-
-    expect(baseLayers['mbtiles:pbf-without-source-type']).toBeDefined();
-    const vectorGridMock = VectorGridProtobuf as unknown as {
-      mock: { calls: Array<[string, unknown]> };
-    };
-    expect(vectorGridMock).toHaveBeenCalled();
-    const option = getBaseLayerOptions().find(
-      (o) => o.value === 'mbtiles:pbf-without-source-type'
-    );
-    expect(option).toBeDefined();
-  });
-
-  it('locks active local vector MBTiles native zoom to current zoom when enabled', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = input.toString();
-        if (url === '/api/tianditu/health') {
-          return new Response(JSON.stringify({ available: false }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-
-        if (url === '/api/mbtiles/catalog') {
-          return new Response(
-            JSON.stringify({
-              sources: [
-                {
-                  id: 'china-vector',
-                  label: 'China Vector',
-                  format: 'pbf',
-                  minZoom: 0,
-                  maxZoom: 14,
-                  bounds: [73, 18, 135, 54],
-                  attribution: 'Local Vector',
-                  sourceType: 'vector',
-                  vectorLayers: [
-                    {
-                      id: 'water',
-                      description: 'Water',
-                      minZoom: 0,
-                      maxZoom: 14,
-                    },
-                  ],
-                },
-              ],
-            }),
-            {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' },
-            }
-          );
-        }
-
-        throw new Error('Unexpected request: ' + url);
-      })
-    );
-
-    await initializeBaseLayers();
-    switchBaseLayer('mbtiles:china-vector');
-
-    const vectorLayer = baseLayers['mbtiles:china-vector'] as L.GridLayer & {
-      options: L.GridLayerOptions;
-    };
-    expect(vectorLayer.options.maxNativeZoom).toBe(14);
-    expect(vectorLayer.options.minNativeZoom).toBeUndefined();
-
-    setLocalVectorMbtilesZoomLockEnabled(true);
-
-    expect(vectorLayer.options.maxNativeZoom).toBe(12);
-    expect(vectorLayer.options.minNativeZoom).toBe(12);
-
-    setLocalVectorMbtilesZoomLockEnabled(false);
-
-    expect(vectorLayer.options.maxNativeZoom).toBe(14);
-    expect(vectorLayer.options.minNativeZoom).toBeUndefined();
   });
 });

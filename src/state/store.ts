@@ -64,7 +64,6 @@ export interface UIState {
   propertiesPanelCollapsed: boolean;
   sideBarCollapsed: boolean;
   routeSearchQuery: string;
-  localVectorMbtilesZoomLockEnabled: boolean;
   showOriginalRouteGeometry: boolean;
 }
 
@@ -288,7 +287,6 @@ class StateStore {
     propertiesPanelCollapsed: false,
     sideBarCollapsed: false,
     routeSearchQuery: '',
-    localVectorMbtilesZoomLockEnabled: false,
     showOriginalRouteGeometry: false,
   };
 

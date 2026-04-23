@@ -12,11 +12,6 @@ const { refreshAllRouteDisplayGeometry } = vi.hoisted(() => ({
   refreshAllRouteDisplayGeometry: vi.fn(),
 }));
 
-vi.mock('../../map/layers', () => ({
-  isLocalVectorMbtilesZoomLockEnabled: vi.fn(() => false),
-  setLocalVectorMbtilesZoomLockEnabled: vi.fn(),
-}));
-
 vi.mock('../../routes/geometry', () => ({
   refreshAllRouteDisplayGeometry,
 }));
@@ -24,7 +19,6 @@ vi.mock('../../routes/geometry', () => ({
 describe('SettingsPanel', () => {
   beforeEach(() => {
     store.uiState.showOriginalRouteGeometry = false;
-    store.uiState.localVectorMbtilesZoomLockEnabled = false;
     refreshAllRouteDisplayGeometry.mockClear();
   });
 
