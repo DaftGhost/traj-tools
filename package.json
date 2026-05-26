@@ -2,6 +2,7 @@
   "name": "fine-tuning-traj",
   "version": "2.0.0",
   "description": "航线编辑器 - 基于 Leaflet 的地理轨迹编辑工具",
+  "license": "MIT",
   "type": "module",
   "packageManager": "bun@1.3.11",
   "scripts": {
